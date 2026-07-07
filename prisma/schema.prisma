@@ -25,6 +25,7 @@ model Miembro {
 
   ubicacionActiva UbicacionActiva?
   recorridos      Recorrido[]
+  rsvps           RsvpRespuesta[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -61,4 +62,36 @@ model Recorrido {
   duracionSeg  Int
   puntos       String
   createdAt    DateTime @default(now())
+}
+
+// Fase 4: feed de publicaciones oficiales de Comunidad (sección 6 del PDF).
+// tipo: "comunicado" | "rodada" | "evento" | "resumen" | "alerta" | "estado_rutas" | "anuncio" | "consejo"
+model Publicacion {
+  id             Int      @id @default(autoincrement())
+  tipo           String
+  titulo         String
+  texto          String
+  fecha          String? // "YYYY-MM-DD", solo rodadas/eventos
+  hora           String? // "HH:MM"
+  puntoEncuentro String?
+  rsvp           Boolean  @default(false)
+  duracionHoras  Int? // vencimiento; null = no vence
+  activaEnMapa   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  rsvps RsvpRespuesta[]
+}
+
+// Una respuesta de RSVP por miembro y publicación ("yes" | "maybe" | "no")
+model RsvpRespuesta {
+  id            Int      @id @default(autoincrement())
+  publicacionId Int
+  publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
+  miembroId     Int
+  miembro       Miembro     @relation(fields: [miembroId], references: [id])
+  estado        String // "yes" | "maybe" | "no"
+  createdAt     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([publicacionId, miembroId])
 }
