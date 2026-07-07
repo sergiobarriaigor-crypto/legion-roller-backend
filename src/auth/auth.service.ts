@@ -30,6 +30,7 @@ export class AuthService {
     };
     return {
       accessToken: this.jwtService.sign(payload),
+      id: miembro.id,
       nombre: miembro.nombre,
       rol: miembro.rol,
     };
