@@ -1,0 +1,36 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Fase 2: modelo mínimo para autenticación real.
+// Los campos de la especificación (stats, tecnicas, reconocimientos, etc.)
+// se agregan en las fases correspondientes (Perfil, Impulsa, etc.).
+model Miembro {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  telefono     String   @unique
+  passwordHash String
+  ciudad       String?
+  rol          String   @default("usuario") // "usuario" | "admin"
+  createdAt    DateTime @default(now())
+}
+
+// Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
+model SolicitudRegistro {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  telefono     String   @unique
+  ciudad       String?
+  passwordHash String
+  estado       String   @default("pendiente") // "pendiente" | "aceptada" | "rechazada"
+  createdAt    DateTime @default(now())
+}
