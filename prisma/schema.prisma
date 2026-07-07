@@ -26,6 +26,9 @@ model Miembro {
   ubicacionActiva UbicacionActiva?
   recorridos      Recorrido[]
   rsvps           RsvpRespuesta[]
+  posts           Post[]
+  reaccionesPost  ReaccionPost[]
+  comentariosPost ComentarioPost[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -94,4 +97,43 @@ model RsvpRespuesta {
   actualizadoEn DateTime @updatedAt
 
   @@unique([publicacionId, miembroId])
+}
+
+// Fase 5: feed social "Post" (sección 7 del PDF) — experiencias personales, distinto de Comunidad.
+// Vigencia fija de 7 días (DIAS_VIGENCIA_POST), calculada en el backend igual que Publicacion.
+// La subida real de fotos/video con editor de recorte queda para la Fase 10; por ahora "fotoUrl"
+// es un link opcional a una imagen.
+model Post {
+  id        Int      @id @default(autoincrement())
+  autorId   Int
+  autor     Miembro  @relation(fields: [autorId], references: [id])
+  titulo    String
+  resena    String
+  ubicacion String?
+  fotoUrl   String?
+  createdAt DateTime @default(now())
+
+  reacciones  ReaccionPost[]
+  comentarios ComentarioPost[]
+}
+
+model ReaccionPost {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id])
+  miembroId Int
+  miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, miembroId])
+}
+
+model ComentarioPost {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id])
+  autorId   Int
+  autor     Miembro  @relation(fields: [autorId], references: [id])
+  texto     String
+  createdAt DateTime @default(now())
 }
