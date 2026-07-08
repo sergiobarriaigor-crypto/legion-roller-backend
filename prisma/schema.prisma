@@ -23,12 +23,15 @@ model Miembro {
   rol          String   @default("usuario") // "usuario" | "admin"
   createdAt    DateTime @default(now())
 
-  ubicacionActiva UbicacionActiva?
-  recorridos      Recorrido[]
-  rsvps           RsvpRespuesta[]
-  posts           Post[]
-  reaccionesPost  ReaccionPost[]
-  comentariosPost ComentarioPost[]
+  ubicacionActiva       UbicacionActiva?
+  recorridos            Recorrido[]
+  rsvps                 RsvpRespuesta[]
+  posts                 Post[]
+  reaccionesPost        ReaccionPost[]
+  comentariosPost       ComentarioPost[]
+  emprendedor           Emprendedor?
+  reaccionesEmprendedor ReaccionEmprendedor[]
+  resenasEmprendedor    ResenaEmprendedor[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -57,14 +60,14 @@ model UbicacionActiva {
 // Fase 3: historial de recorridos grabados (sección 5 y 11 del PDF).
 // "puntos" guarda el arreglo [{lat, lon, timestamp}] como JSON en texto (SQLite no tiene tipo arreglo).
 model Recorrido {
-  id           Int      @id @default(autoincrement())
-  miembroId    Int
-  miembro      Miembro  @relation(fields: [miembroId], references: [id])
-  tipo         String   @default("libre") // "ruta" | "libre"
-  distanciaKm  Float
-  duracionSeg  Int
-  puntos       String
-  createdAt    DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  miembroId   Int
+  miembro     Miembro  @relation(fields: [miembroId], references: [id])
+  tipo        String   @default("libre") // "ruta" | "libre"
+  distanciaKm Float
+  duracionSeg Int
+  puntos      String
+  createdAt   DateTime @default(now())
 }
 
 // Fase 4: feed de publicaciones oficiales de Comunidad (sección 6 del PDF).
@@ -87,14 +90,14 @@ model Publicacion {
 
 // Una respuesta de RSVP por miembro y publicación ("yes" | "maybe" | "no")
 model RsvpRespuesta {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   publicacionId Int
   publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
   miembroId     Int
   miembro       Miembro     @relation(fields: [miembroId], references: [id])
   estado        String // "yes" | "maybe" | "no"
-  createdAt     DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  actualizadoEn DateTime    @updatedAt
 
   @@unique([publicacionId, miembroId])
 }
@@ -136,4 +139,55 @@ model ComentarioPost {
   autor     Miembro  @relation(fields: [autorId], references: [id])
   texto     String
   createdAt DateTime @default(now())
+}
+
+// Fase 6: directorio de emprendedores "Impulsa" (sección 8 del PDF).
+// Una ficha por miembro; requiere aprobación de un Admin antes de salir en el directorio público.
+model Emprendedor {
+  id            Int      @id @default(autoincrement())
+  miembroId     Int      @unique
+  miembro       Miembro  @relation(fields: [miembroId], references: [id])
+  nombreNegocio String
+  rubro         String
+  descripcion   String
+  contacto      String
+  ubicacion     String?
+  instagram     String?
+  facebook      String?
+  tiktok        String?
+  aprobado      Boolean  @default(false)
+  solicitadoAt  DateTime @default(now())
+
+  reacciones ReaccionEmprendedor[]
+  resenas    ResenaEmprendedor[]
+  anuncios   AnuncioEmprendedor[]
+}
+
+model ReaccionEmprendedor {
+  id            Int         @id @default(autoincrement())
+  emprendedorId Int
+  emprendedor   Emprendedor @relation(fields: [emprendedorId], references: [id])
+  miembroId     Int
+  miembro       Miembro     @relation(fields: [miembroId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([emprendedorId, miembroId])
+}
+
+model ResenaEmprendedor {
+  id            Int         @id @default(autoincrement())
+  emprendedorId Int
+  emprendedor   Emprendedor @relation(fields: [emprendedorId], references: [id])
+  autorId       Int
+  autor         Miembro     @relation(fields: [autorId], references: [id])
+  texto         String
+  createdAt     DateTime    @default(now())
+}
+
+model AnuncioEmprendedor {
+  id            Int         @id @default(autoincrement())
+  emprendedorId Int
+  emprendedor   Emprendedor @relation(fields: [emprendedorId], references: [id])
+  texto         String
+  createdAt     DateTime    @default(now())
 }
