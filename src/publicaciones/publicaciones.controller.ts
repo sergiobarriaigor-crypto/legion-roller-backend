@@ -61,6 +61,13 @@ export class PublicacionesController {
     return this.publicacionesService.eliminar(id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get(':id/rsvps')
+  detalleRsvps(@Param('id', ParseIntPipe) id: number) {
+    return this.publicacionesService.detalleRsvps(id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post(':id/rsvp')
   marcarRsvp(

@@ -98,6 +98,7 @@ model Publicacion {
   rsvp           Boolean  @default(false)
   duracionHoras  Int? // vencimiento; null = no vence
   activaEnMapa   Boolean  @default(false)
+  fotos          String? // JSON array de URLs (Fase 10: subida real vía /uploads)
   createdAt      DateTime @default(now())
 
   rsvps RsvpRespuesta[]
@@ -170,6 +171,7 @@ model Emprendedor {
   instagram     String?
   facebook      String?
   tiktok        String?
+  fotos         String? // JSON array de URLs (Fase 10: subida real vía /uploads)
   aprobado      Boolean  @default(false)
   solicitadoAt  DateTime @default(now())
 

@@ -12,6 +12,6 @@ export class CrearPostDto {
   ubicacion?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   fotoUrl?: string;
 }

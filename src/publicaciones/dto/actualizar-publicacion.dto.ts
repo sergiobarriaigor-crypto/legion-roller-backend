@@ -1,9 +1,11 @@
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   Min,
 } from 'class-validator';
 import { TIPOS_PUBLICACION } from './crear-publicacion.dto';
@@ -45,4 +47,9 @@ export class ActualizarPublicacionDto {
   @IsOptional()
   @IsBoolean()
   activaEnMapa?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsUrl({ require_tld: false }, { each: true })
+  fotos?: string[];
 }

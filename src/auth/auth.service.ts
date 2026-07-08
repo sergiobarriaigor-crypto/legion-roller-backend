@@ -125,4 +125,18 @@ export class AuthService {
     });
     return { mensaje: 'Solicitud rechazada' };
   }
+
+  async miembros() {
+    return this.prisma.miembro.findMany({
+      orderBy: { nombre: 'asc' },
+      select: {
+        id: true,
+        nombre: true,
+        telefono: true,
+        ciudad: true,
+        rol: true,
+        createdAt: true,
+      },
+    });
+  }
 }

@@ -14,6 +14,10 @@ export class PublicacionesService {
     return Date.now() > expiraEn;
   }
 
+  private formatear<T extends { fotos: string | null }>(p: T) {
+    return { ...p, fotos: p.fotos ? (JSON.parse(p.fotos) as string[]) : [] };
+  }
+
   async listar() {
     const publicaciones = await this.prisma.publicacion.findMany({
       orderBy: { createdAt: 'desc' },
@@ -31,7 +35,7 @@ export class PublicacionesService {
     return vigentes.map((p) => {
       const propios = rsvps.filter((r) => r.publicacionId === p.id);
       return {
-        ...p,
+        ...this.formatear(p),
         rsvpCounts: {
           yes: propios.filter((r) => r.estado === 'yes').length,
           maybe: propios.filter((r) => r.estado === 'maybe').length,
@@ -48,13 +52,35 @@ export class PublicacionesService {
     return Object.fromEntries(respuestas.map((r) => [r.publicacionId, r.estado]));
   }
 
-  crear(dto: CrearPublicacionDto) {
-    return this.prisma.publicacion.create({ data: dto });
+  async detalleRsvps(publicacionId: number) {
+    await this.obtenerOFallar(publicacionId);
+    const respuestas = await this.prisma.rsvpRespuesta.findMany({
+      where: { publicacionId },
+      include: { miembro: { select: { nombre: true } } },
+      orderBy: { actualizadoEn: 'desc' },
+    });
+    return respuestas.map((r) => ({
+      miembroNombre: r.miembro.nombre,
+      estado: r.estado,
+    }));
+  }
+
+  async crear(dto: CrearPublicacionDto) {
+    const { fotos, ...resto } = dto;
+    const creada = await this.prisma.publicacion.create({
+      data: { ...resto, fotos: fotos ? JSON.stringify(fotos) : undefined },
+    });
+    return this.formatear(creada);
   }
 
   async actualizar(id: number, dto: ActualizarPublicacionDto) {
     await this.obtenerOFallar(id);
-    return this.prisma.publicacion.update({ where: { id }, data: dto });
+    const { fotos, ...resto } = dto;
+    const actualizada = await this.prisma.publicacion.update({
+      where: { id },
+      data: { ...resto, ...(fotos ? { fotos: JSON.stringify(fotos) } : {}) },
+    });
+    return this.formatear(actualizada);
   }
 
   async eliminar(id: number) {

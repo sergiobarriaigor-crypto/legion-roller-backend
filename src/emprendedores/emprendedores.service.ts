@@ -34,6 +34,7 @@ export class EmprendedoresService {
     instagram: string | null;
     facebook: string | null;
     tiktok: string | null;
+    fotos: string | null;
     aprobado: boolean;
     solicitadoAt: Date;
     reacciones: { miembroId: number }[];
@@ -52,6 +53,7 @@ export class EmprendedoresService {
       instagram: e.instagram,
       facebook: e.facebook,
       tiktok: e.tiktok,
+      fotos: e.fotos ? (JSON.parse(e.fotos) as string[]) : [],
       aprobado: e.aprobado,
       solicitadoAt: e.solicitadoAt,
       reaccionesCount: e.reacciones.length,
@@ -83,19 +85,21 @@ export class EmprendedoresService {
   }
 
   async guardarFicha(miembroId: number, dto: FichaEmprendedorDto) {
+    const { fotos, ...resto } = dto;
+    const data = { ...resto, ...(fotos ? { fotos: JSON.stringify(fotos) } : {}) };
     const existente = await this.prisma.emprendedor.findUnique({ where: { miembroId } });
 
     if (existente) {
       const actualizado = await this.prisma.emprendedor.update({
         where: { miembroId },
-        data: dto,
+        data,
         include: this.incluir(),
       });
       return this.formatear(actualizado);
     }
 
     const creado = await this.prisma.emprendedor.create({
-      data: { ...dto, miembroId },
+      data: { ...data, miembroId },
       include: this.incluir(),
     });
     return this.formatear(creado);

@@ -14,6 +14,6 @@ export class ActualizarPostDto {
   ubicacion?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   fotoUrl?: string;
 }

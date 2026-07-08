@@ -44,6 +44,13 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
+  @Get('miembros')
+  miembros() {
+    return this.authService.miembros();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Post('solicitudes/:id/aprobar')
   aprobar(@Param('id', ParseIntPipe) id: number) {
     return this.authService.aprobarSolicitud(id);

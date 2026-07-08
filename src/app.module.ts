@@ -10,6 +10,7 @@ import { EmprendedoresModule } from './emprendedores/emprendedores.module';
 import { PerfilModule } from './perfil/perfil.module';
 import { ChatModule } from './chat/chat.module';
 import { EmergenciasModule } from './emergencias/emergencias.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { EmergenciasModule } from './emergencias/emergencias.module';
     PerfilModule,
     ChatModule,
     EmergenciasModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

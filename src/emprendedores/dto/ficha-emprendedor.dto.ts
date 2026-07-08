@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class FichaEmprendedorDto {
   @IsString()
@@ -28,4 +28,9 @@ export class FichaEmprendedorDto {
   @IsOptional()
   @IsString()
   tiktok?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUrl({ require_tld: false }, { each: true })
+  fotos?: string[];
 }
