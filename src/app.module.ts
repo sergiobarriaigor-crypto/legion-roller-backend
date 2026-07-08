@@ -9,6 +9,7 @@ import { PostsModule } from './posts/posts.module';
 import { EmprendedoresModule } from './emprendedores/emprendedores.module';
 import { PerfilModule } from './perfil/perfil.module';
 import { ChatModule } from './chat/chat.module';
+import { EmergenciasModule } from './emergencias/emergencias.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ChatModule } from './chat/chat.module';
     EmprendedoresModule,
     PerfilModule,
     ChatModule,
+    EmergenciasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

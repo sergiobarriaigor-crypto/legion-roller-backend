@@ -46,6 +46,7 @@ model Miembro {
   reconocimientosRecibidos ReconocimientoRecibido[] @relation("reconocimientosRecibidos")
   mensajesChat             MensajeChat[]
   lecturasChat             LecturaChat[]
+  emergencias              Emergencia[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -244,4 +245,17 @@ model LecturaChat {
   leidoHasta DateTime
 
   @@unique([miembroId, sala])
+}
+
+// Fase 9: SOS / Emergencia (sección 5 del PDF). Solo una emergencia activa por miembro a la vez;
+// se conserva el historial (activa=false) en vez de borrar el registro.
+model Emergencia {
+  id                 Int       @id @default(autoincrement())
+  miembroId          Int
+  miembro            Miembro   @relation(fields: [miembroId], references: [id])
+  motivo             String // "caida" | "salud" | "seguridad" | "otro"
+  requiereAmbulancia Boolean   @default(false)
+  activa             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  resueltaAt         DateTime?
 }
