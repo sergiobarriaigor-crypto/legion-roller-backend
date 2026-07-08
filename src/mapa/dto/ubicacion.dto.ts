@@ -1,4 +1,4 @@
-import { IsNumber, Max, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class UbicacionDto {
   @IsNumber()
@@ -10,4 +10,8 @@ export class UbicacionDto {
   @Min(-180)
   @Max(180)
   lon: number;
+
+  @IsOptional()
+  @IsIn(['patinando', 'ruta'])
+  modo?: string;
 }

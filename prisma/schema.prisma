@@ -72,6 +72,12 @@ model UbicacionActiva {
   miembro       Miembro  @relation(fields: [miembroId], references: [id])
   lat           Float
   lon           Float
+  // Ajuste post-Fase 11: "patinando" (solo comparte ubicación) o "ruta" (además graba
+  // el recorrido); usado para filtrar el panel de "Patinadores activos".
+  modo          String   @default("patinando")
+  // Se fija solo al crear (no cambia con cada actualización de posición), para poder
+  // mostrar "hace X min" desde que activó el modo, a diferencia de actualizadoEn.
+  iniciadoEn    DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 }
 

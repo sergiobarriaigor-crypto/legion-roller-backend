@@ -11,10 +11,11 @@ export class MapaService {
   constructor(private prisma: PrismaService) {}
 
   async activarPatinando(miembroId: number, dto: UbicacionDto) {
+    const modo = dto.modo ?? 'patinando';
     const ubicacion = await this.prisma.ubicacionActiva.upsert({
       where: { miembroId },
-      create: { miembroId, lat: dto.lat, lon: dto.lon },
-      update: { lat: dto.lat, lon: dto.lon },
+      create: { miembroId, lat: dto.lat, lon: dto.lon, modo },
+      update: { lat: dto.lat, lon: dto.lon, modo },
     });
     return ubicacion;
   }
@@ -42,6 +43,8 @@ export class MapaService {
       estado: this.estadoVigente(u.miembro),
       lat: u.lat,
       lon: u.lon,
+      modo: u.modo,
+      iniciadoEn: u.iniciadoEn,
       actualizadoEn: u.actualizadoEn,
     }));
   }
