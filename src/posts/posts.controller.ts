@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post as HttpPost,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -25,8 +26,8 @@ export class PostsController {
   constructor(private postsService: PostsService) {}
 
   @Get()
-  listar() {
-    return this.postsService.listar();
+  listar(@Query('autorId') autorId?: string) {
+    return this.postsService.listar(autorId ? Number(autorId) : undefined);
   }
 
   @UseGuards(JwtAuthGuard)

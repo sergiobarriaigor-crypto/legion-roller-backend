@@ -7,6 +7,7 @@ import { MapaModule } from './mapa/mapa.module';
 import { PublicacionesModule } from './publicaciones/publicaciones.module';
 import { PostsModule } from './posts/posts.module';
 import { EmprendedoresModule } from './emprendedores/emprendedores.module';
+import { PerfilModule } from './perfil/perfil.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { EmprendedoresModule } from './emprendedores/emprendedores.module';
     PublicacionesModule,
     PostsModule,
     EmprendedoresModule,
+    PerfilModule,
   ],
   controllers: [AppController],
   providers: [AppService],

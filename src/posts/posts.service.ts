@@ -13,11 +13,11 @@ const DIAS_VIGENCIA_POST = 7;
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
-  async listar() {
+  async listar(autorId?: number) {
     const limite = new Date(Date.now() - DIAS_VIGENCIA_POST * 24 * 60 * 60 * 1000);
 
     const posts = await this.prisma.post.findMany({
-      where: { createdAt: { gte: limite } },
+      where: { createdAt: { gte: limite }, ...(autorId ? { autorId } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
         autor: { select: { id: true, nombre: true } },

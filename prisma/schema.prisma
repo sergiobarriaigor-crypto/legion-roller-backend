@@ -23,15 +23,27 @@ model Miembro {
   rol          String   @default("usuario") // "usuario" | "admin"
   createdAt    DateTime @default(now())
 
-  ubicacionActiva       UbicacionActiva?
-  recorridos            Recorrido[]
-  rsvps                 RsvpRespuesta[]
-  posts                 Post[]
-  reaccionesPost        ReaccionPost[]
-  comentariosPost       ComentarioPost[]
-  emprendedor           Emprendedor?
-  reaccionesEmprendedor ReaccionEmprendedor[]
-  resenasEmprendedor    ResenaEmprendedor[]
+  // Fase 7: técnicas dominadas (autoevaluación, sección 9 del PDF)
+  tecnicaT        Boolean @default(false)
+  tecnicaSoul     Boolean @default(false)
+  tecnicaMaggi    Boolean @default(false)
+  tecnicaParallel Boolean @default(false)
+
+  // Fase 7: estado tipo "story" visible en el mapa (vigencia HORAS_ESTADO = 8h)
+  estadoTexto String?
+  estadoSetAt DateTime?
+
+  ubicacionActiva          UbicacionActiva?
+  recorridos               Recorrido[]
+  rsvps                    RsvpRespuesta[]
+  posts                    Post[]
+  reaccionesPost           ReaccionPost[]
+  comentariosPost          ComentarioPost[]
+  emprendedor              Emprendedor?
+  reaccionesEmprendedor    ReaccionEmprendedor[]
+  resenasEmprendedor       ResenaEmprendedor[]
+  reconocimientosEnviados  ReconocimientoRecibido[] @relation("reconocimientosEnviados")
+  reconocimientosRecibidos ReconocimientoRecibido[] @relation("reconocimientosRecibidos")
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -190,4 +202,17 @@ model AnuncioEmprendedor {
   emprendedor   Emprendedor @relation(fields: [emprendedorId], references: [id])
   texto         String
   createdAt     DateTime    @default(now())
+}
+
+// Fase 7: reconocimientos entre miembros (sección 9 del PDF). Vigencia de 15 días
+// (DIAS_VIGENCIA_RECO), calculada en el backend comparando createdAt.
+model ReconocimientoRecibido {
+  id        Int      @id @default(autoincrement())
+  deId      Int
+  de        Miembro  @relation("reconocimientosEnviados", fields: [deId], references: [id])
+  paraId    Int
+  para      Miembro  @relation("reconocimientosRecibidos", fields: [paraId], references: [id])
+  texto     String
+  leida     Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
