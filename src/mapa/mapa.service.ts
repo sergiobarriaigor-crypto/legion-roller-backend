@@ -73,14 +73,37 @@ export class MapaService {
     const recorridos = await this.prisma.recorrido.findMany({
       where: { miembroId },
       orderBy: { createdAt: 'desc' },
+      take: 10,
       select: {
         id: true,
         tipo: true,
         distanciaKm: true,
         duracionSeg: true,
         createdAt: true,
+        puntos: true,
       },
     });
-    return recorridos;
+
+    return recorridos.map((r) => ({
+      id: r.id,
+      tipo: r.tipo,
+      distanciaKm: r.distanciaKm,
+      duracionSeg: r.duracionSeg,
+      createdAt: r.createdAt,
+      puntos: this.decimarPuntos(JSON.parse(r.puntos)),
+    }));
+  }
+
+  // Reduce la cantidad de puntos que viajan al frontend para la vista previa
+  // de "Mis rutas" (ajuste post-Fase 11), conservando siempre el primer y
+  // último punto para que el inicio/fin del trazado no se pierdan.
+  private decimarPuntos<T>(puntos: T[], maximo = 50): T[] {
+    if (puntos.length <= maximo) return puntos;
+    const paso = (puntos.length - 1) / (maximo - 1);
+    const resultado: T[] = [];
+    for (let i = 0; i < maximo; i++) {
+      resultado.push(puntos[Math.round(i * paso)]);
+    }
+    return resultado;
   }
 }
