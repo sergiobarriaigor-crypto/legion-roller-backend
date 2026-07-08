@@ -8,6 +8,7 @@ import { PublicacionesModule } from './publicaciones/publicaciones.module';
 import { PostsModule } from './posts/posts.module';
 import { EmprendedoresModule } from './emprendedores/emprendedores.module';
 import { PerfilModule } from './perfil/perfil.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PerfilModule } from './perfil/perfil.module';
     PostsModule,
     EmprendedoresModule,
     PerfilModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

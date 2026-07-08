@@ -44,6 +44,8 @@ model Miembro {
   resenasEmprendedor       ResenaEmprendedor[]
   reconocimientosEnviados  ReconocimientoRecibido[] @relation("reconocimientosEnviados")
   reconocimientosRecibidos ReconocimientoRecibido[] @relation("reconocimientosRecibidos")
+  mensajesChat             MensajeChat[]
+  lecturasChat             LecturaChat[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -215,4 +217,31 @@ model ReconocimientoRecibido {
   texto     String
   leida     Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// Fase 8: chat grupal e individual (sección 9 y 11 del PDF).
+// "sala" = "grupal" (chat único general) o "dm-{idMenor}-{idMayor}" para chats 1 a 1.
+// Vigencia de 7 días (DIAS_VIGENCIA_CHAT), calculada en el backend comparando createdAt.
+model MensajeChat {
+  id             Int      @id @default(autoincrement())
+  sala           String
+  autorId        Int
+  autor          Miembro  @relation(fields: [autorId], references: [id])
+  texto          String
+  referenciaTipo String? // "post" | "emprendedor"
+  referenciaId   Int?
+  createdAt      DateTime @default(now())
+
+  @@index([sala])
+}
+
+// Marca hasta qué momento leyó cada miembro cada sala (para contar mensajes no leídos).
+model LecturaChat {
+  id         Int      @id @default(autoincrement())
+  miembroId  Int
+  miembro    Miembro  @relation(fields: [miembroId], references: [id])
+  sala       String
+  leidoHasta DateTime
+
+  @@unique([miembroId, sala])
 }
