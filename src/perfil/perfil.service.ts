@@ -58,6 +58,7 @@ export class PerfilService {
       nombre: miembro.nombre,
       ciudad: miembro.ciudad,
       rol: miembro.rol,
+      fotoUrl: miembro.fotoUrl,
       stats,
       tecnicas: {
         t: miembro.tecnicaT,
@@ -126,6 +127,16 @@ export class PerfilService {
       data: { estadoTexto: null, estadoSetAt: null },
     });
     return { mensaje: 'Estado eliminado' };
+  }
+
+  async setFoto(miembroId: number, fotoUrl: string) {
+    await this.prisma.miembro.update({ where: { id: miembroId }, data: { fotoUrl } });
+    return { fotoUrl };
+  }
+
+  async quitarFoto(miembroId: number) {
+    await this.prisma.miembro.update({ where: { id: miembroId }, data: { fotoUrl: null } });
+    return { mensaje: 'Foto de perfil eliminada' };
   }
 
   async enviarReconocimiento(deId: number, paraId: number, texto: string) {

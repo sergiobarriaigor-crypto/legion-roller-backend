@@ -14,6 +14,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PerfilService } from './perfil.service';
 import { EstadoDto } from './dto/estado.dto';
+import { FotoDto } from './dto/foto.dto';
 import { ReconocimientoDto } from './dto/reconocimiento.dto';
 
 interface RequestConUsuario {
@@ -48,6 +49,16 @@ export class PerfilController {
   @Delete('estado')
   limpiarEstado(@Req() req: RequestConUsuario) {
     return this.perfilService.limpiarEstado(req.user.id);
+  }
+
+  @Put('foto')
+  setFoto(@Req() req: RequestConUsuario, @Body() dto: FotoDto) {
+    return this.perfilService.setFoto(req.user.id, dto.fotoUrl);
+  }
+
+  @Delete('foto')
+  quitarFoto(@Req() req: RequestConUsuario) {
+    return this.perfilService.quitarFoto(req.user.id);
   }
 
   @Post(':id/reconocimientos')

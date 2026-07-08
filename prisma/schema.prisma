@@ -33,6 +33,9 @@ model Miembro {
   estadoTexto String?
   estadoSetAt DateTime?
 
+  // Ajuste post-Fase 11: foto de perfil circular, mostrada en el mapa mientras comparte ubicación
+  fotoUrl String?
+
   ubicacionActiva          UbicacionActiva?
   recorridos               Recorrido[]
   rsvps                    RsvpRespuesta[]
