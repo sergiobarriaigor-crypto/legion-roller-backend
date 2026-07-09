@@ -81,5 +81,11 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.8.0": true,
+    "better-sqlite3@12.11.1": true,
+    "prisma@7.8.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }
