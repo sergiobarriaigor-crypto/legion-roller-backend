@@ -91,6 +91,7 @@ model Recorrido {
   distanciaKm Float
   duracionSeg Int
   puntos      String
+  favorito    Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
 

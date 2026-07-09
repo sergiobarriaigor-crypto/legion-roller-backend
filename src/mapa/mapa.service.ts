@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
 
 const HORAS_VIGENCIA_PATINANDO = 4;
 const HORAS_ESTADO = 8;
+const MAX_RECORRIDOS_GUARDADOS = 10;
 
 @Injectable()
 export class MapaService {
@@ -57,6 +62,13 @@ export class MapaService {
   }
 
   async guardarRecorrido(miembroId: number, dto: RecorridoDto) {
+    const total = await this.prisma.recorrido.count({ where: { miembroId } });
+    if (total >= MAX_RECORRIDOS_GUARDADOS) {
+      throw new ConflictException(
+        `Has alcanzado el máximo de ${MAX_RECORRIDOS_GUARDADOS} rutas guardadas. Para guardar una nueva ruta, elimina uno de tus recorridos anteriores.`,
+      );
+    }
+
     const recorrido = await this.prisma.recorrido.create({
       data: {
         miembroId,
@@ -69,11 +81,34 @@ export class MapaService {
     return { id: recorrido.id, mensaje: 'Recorrido guardado' };
   }
 
+  async eliminarRecorrido(miembroId: number, id: number) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    await this.prisma.recorrido.delete({ where: { id } });
+    return { mensaje: 'Recorrido eliminado' };
+  }
+
+  async alternarFavorito(miembroId: number, id: number) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    const actualizado = await this.prisma.recorrido.update({
+      where: { id },
+      data: { favorito: !recorrido.favorito },
+    });
+    return { favorito: actualizado.favorito };
+  }
+
   async misRecorridos(miembroId: number) {
     const recorridos = await this.prisma.recorrido.findMany({
       where: { miembroId },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: MAX_RECORRIDOS_GUARDADOS,
       select: {
         id: true,
         tipo: true,
@@ -81,6 +116,7 @@ export class MapaService {
         duracionSeg: true,
         createdAt: true,
         puntos: true,
+        favorito: true,
       },
     });
 
@@ -90,6 +126,7 @@ export class MapaService {
       distanciaKm: r.distanciaKm,
       duracionSeg: r.duracionSeg,
       createdAt: r.createdAt,
+      favorito: r.favorito,
       puntos: this.decimarPuntos(JSON.parse(r.puntos)),
     }));
   }

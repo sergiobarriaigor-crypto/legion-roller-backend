@@ -3,6 +3,9 @@ import {
   Controller,
   Delete,
   Get,
+  Param,
+  ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -50,5 +53,21 @@ export class MapaController {
   @Get('recorridos')
   misRecorridos(@Req() req: RequestConUsuario) {
     return this.mapaService.misRecorridos(req.user.id);
+  }
+
+  @Delete('recorridos/:id')
+  eliminarRecorrido(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.mapaService.eliminarRecorrido(req.user.id, id);
+  }
+
+  @Patch('recorridos/:id/favorito')
+  alternarFavorito(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.mapaService.alternarFavorito(req.user.id, id);
   }
 }
