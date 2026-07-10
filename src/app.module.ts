@@ -11,6 +11,7 @@ import { PerfilModule } from './perfil/perfil.module';
 import { ChatModule } from './chat/chat.module';
 import { EmergenciasModule } from './emergencias/emergencias.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { HistoriasModule } from './historias/historias.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UploadsModule } from './uploads/uploads.module';
     ChatModule,
     EmergenciasModule,
     UploadsModule,
+    HistoriasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

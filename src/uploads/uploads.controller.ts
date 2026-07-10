@@ -29,13 +29,15 @@ export class UploadsController {
         },
       }),
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-          cb(new BadRequestException('Solo se permiten imágenes'), false);
+        if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
+          cb(new BadRequestException('Solo se permiten imágenes o videos'), false);
           return;
         }
         cb(null, true);
       },
-      limits: { fileSize: 5 * 1024 * 1024 },
+      // Antes 5MB (solo imágenes). Historias sube videos cortos (máx. 30s), así que
+      // el límite subió a 40MB para que quepan sin afectar las imágenes (siguen pesando poco).
+      limits: { fileSize: 40 * 1024 * 1024 },
     }),
   )
   subir(@UploadedFile() archivo: Express.Multer.File, @Req() req: Request) {

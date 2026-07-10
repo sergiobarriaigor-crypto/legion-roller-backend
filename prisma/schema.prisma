@@ -50,6 +50,8 @@ model Miembro {
   mensajesChat             MensajeChat[]
   lecturasChat             LecturaChat[]
   emergencias              Emergencia[]
+  historias                Historia[]
+  vistasHistoria           VistaHistoria[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -270,4 +272,36 @@ model Emergencia {
   activa             Boolean   @default(true)
   createdAt          DateTime  @default(now())
   resueltaAt         DateTime?
+}
+
+// Historias efímeras estilo Instagram (vigencia HORAS_VIGENCIA_HISTORIA = 24h), en la
+// barra sobre el feed de Post. Se calcula igual que Post (createdAt + filtro en el
+// where, sin cron) — los registros vencidos no se borran, solo dejan de listarse.
+model Historia {
+  id        Int      @id @default(autoincrement())
+  autorId   Int
+  autor     Miembro  @relation(fields: [autorId], references: [id])
+  tipo      String // "foto" | "video"
+  mediaUrl  String
+  texto     String? // texto superpuesto opcional
+  ubicacion String? // nombre de sector (sectorMasCercano), opcional
+  createdAt DateTime @default(now())
+
+  vistas VistaHistoria[]
+
+  @@index([autorId])
+}
+
+// Qué historias ya vio cada miembro. Es por historia individual (no "leído hasta una
+// fecha" como LecturaChat) porque el anillo dorado solo se apaga cuando TODAS las
+// historias activas de ese autor fueron vistas, no basta una sola marca de tiempo.
+model VistaHistoria {
+  id         Int      @id @default(autoincrement())
+  historiaId Int
+  historia   Historia @relation(fields: [historiaId], references: [id])
+  miembroId  Int
+  miembro    Miembro  @relation(fields: [miembroId], references: [id])
+  vistaAt    DateTime @default(now())
+
+  @@unique([historiaId, miembroId])
 }
