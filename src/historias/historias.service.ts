@@ -79,6 +79,7 @@ export class HistoriasService {
           tipo: h.tipo,
           mediaUrl: h.mediaUrl,
           texto: h.texto,
+          textoEstilo: h.textoEstilo,
           ubicacion: h.ubicacion,
           createdAt: h.createdAt,
         })),

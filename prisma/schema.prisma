@@ -283,7 +283,11 @@ model Historia {
   autor     Miembro  @relation(fields: [autorId], references: [id])
   tipo      String // "foto" | "video"
   mediaUrl  String
-  texto     String? // texto superpuesto opcional
+  texto     String? // texto superpuesto opcional (contenido plano)
+  // Posición/tamaño/rotación/tipografía/color/alineación/fondo del texto sobre
+  // la imagen, como JSON en texto (mismo patrón que "puntos" en Recorrido) —
+  // opaco para el backend, solo el frontend lo arma/interpreta.
+  textoEstilo String?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
   createdAt DateTime @default(now())
 
