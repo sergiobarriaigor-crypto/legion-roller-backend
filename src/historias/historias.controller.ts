@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { HistoriasService } from './historias.service';
 import { CrearHistoriaDto } from './dto/crear-historia.dto';
+import { ResponderMencionDto } from './dto/responder-mencion.dto';
 
 interface RequestConUsuario {
   user: { id: number; rol: string };
@@ -55,5 +56,15 @@ export class HistoriasController {
   @Get(':id/reacciones')
   reacciones(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
     return this.historiasService.reaccionesDe(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/mencion')
+  responderMencion(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResponderMencionDto,
+  ) {
+    return this.historiasService.responderMencion(id, req.user.id, dto.aceptar);
   }
 }

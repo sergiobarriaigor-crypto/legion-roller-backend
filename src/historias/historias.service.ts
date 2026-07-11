@@ -40,7 +40,7 @@ export class HistoriasService {
       orderBy: { createdAt: 'asc' },
       include: {
         autor: { select: { id: true, nombre: true, fotoUrl: true } },
-        mencionado: { select: { id: true, nombre: true } },
+        mencionado: { select: { id: true, nombre: true, fotoUrl: true } },
         reacciones: { select: { miembroId: true, leida: true } },
       },
     });
@@ -56,24 +56,40 @@ export class HistoriasService {
     });
     const idsVistos = new Set(vistas.map((v) => v.historiaId));
 
+    type HistoriaConDatos = (typeof historias)[number] & { compartida: boolean };
+
     const grupos = new Map<
       number,
       {
         autorId: number;
         autorNombre: string;
         autorFotoUrl: string | null;
-        historias: typeof historias;
+        historias: HistoriaConDatos[];
       }
     >();
-    for (const h of historias) {
-      const grupo = grupos.get(h.autorId) ?? {
-        autorId: h.autorId,
-        autorNombre: h.autor.nombre,
-        autorFotoUrl: h.autor.fotoUrl,
+
+    function agregarA(clave: number, nombre: string, fotoUrl: string | null, h: HistoriaConDatos) {
+      const grupo = grupos.get(clave) ?? {
+        autorId: clave,
+        autorNombre: nombre,
+        autorFotoUrl: fotoUrl,
         historias: [],
       };
       grupo.historias.push(h);
-      grupos.set(h.autorId, grupo);
+      grupos.set(clave, grupo);
+    }
+
+    for (const h of historias) {
+      agregarA(h.autorId, h.autor.nombre, h.autor.fotoUrl, { ...h, compartida: false });
+      // Mención aceptada: la MISMA historia también se agrupa bajo el avatar
+      // del mencionado (sin sistema de seguidores — solo se re-agrupa, no se
+      // duplica el registro).
+      if (h.mencionadoId && h.mencionAceptada && h.mencionado) {
+        agregarA(h.mencionadoId, h.mencionado.nombre, h.mencionado.fotoUrl, {
+          ...h,
+          compartida: true,
+        });
+      }
     }
 
     return [...grupos.values()]
@@ -83,13 +99,16 @@ export class HistoriasService {
         autorFotoUrl: g.autorFotoUrl,
         vistoCompleto: g.historias.every((h) => idsVistos.has(h.id)),
         // Notificación liviana para el propio autor: hay reacciones sin leer
-        // en alguna de sus historias activas (se marcan leídas al consultar
-        // /historias/:id/reacciones).
+        // en alguna historia que ÉL creó (no en una compartida de otro autor
+        // que solo aparece bajo su avatar por una mención aceptada).
         reaccionesSinLeer:
           g.autorId === miembroIdActual &&
-          g.historias.some((h) => h.reacciones.some((r) => !r.leida)),
+          g.historias.some((h) => !h.compartida && h.reacciones.some((r) => !r.leida)),
         historias: g.historias.map((h) => ({
           id: h.id,
+          autorId: h.autorId,
+          autorNombre: h.autor.nombre,
+          compartida: h.compartida,
           tipo: h.tipo,
           mediaUrl: h.mediaUrl,
           texto: h.texto,
@@ -99,6 +118,7 @@ export class HistoriasService {
           mencionadoNombre: h.mencionado?.nombre ?? null,
           mencionX: h.mencionX,
           mencionY: h.mencionY,
+          mencionAceptada: h.mencionAceptada,
           // Notificación de mención: se apaga sola apenas el mencionado ve
           // esta historia (reusa VistaHistoria, no hace falta un campo nuevo).
           mencionSinVer: h.mencionadoId === miembroIdActual && !idsVistos.has(h.id),
@@ -181,6 +201,22 @@ export class HistoriasService {
       fotoUrl: r.miembro.fotoUrl,
       createdAt: r.createdAt,
     }));
+  }
+
+  // El mencionado decide si la historia también aparece bajo su propio
+  // avatar en la barra (sin sistema de seguidores: sigue siendo la misma
+  // historia, solo se re-agrupa también bajo él). Solo el mencionado puede
+  // responder, y solo mientras no haya respondido antes.
+  async responderMencion(historiaId: number, miembroId: number, aceptar: boolean) {
+    const historia = await this.obtenerOFallar(historiaId);
+    if (historia.mencionadoId !== miembroId) {
+      throw new ForbiddenException('Solo la persona mencionada puede responder');
+    }
+    await this.prisma.historia.update({
+      where: { id: historiaId },
+      data: { mencionAceptada: aceptar },
+    });
+    return { mencionAceptada: aceptar };
   }
 
   private async obtenerOFallar(id: number) {
