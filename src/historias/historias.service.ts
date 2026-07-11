@@ -99,6 +99,9 @@ export class HistoriasService {
           mencionadoNombre: h.mencionado?.nombre ?? null,
           mencionX: h.mencionX,
           mencionY: h.mencionY,
+          // Notificación de mención: se apaga sola apenas el mencionado ve
+          // esta historia (reusa VistaHistoria, no hace falta un campo nuevo).
+          mencionSinVer: h.mencionadoId === miembroIdActual && !idsVistos.has(h.id),
           reaccionesCount: h.reacciones.length,
           miReaccion: h.reacciones.some((r) => r.miembroId === miembroIdActual),
           createdAt: h.createdAt,
