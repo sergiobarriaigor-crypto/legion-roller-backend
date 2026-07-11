@@ -44,4 +44,16 @@ export class HistoriasController {
   eliminar(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
     return this.historiasService.eliminar(id, req.user.id, req.user.rol);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/reaccion')
+  toggleReaccion(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+    return this.historiasService.toggleReaccion(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/reacciones')
+  reacciones(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+    return this.historiasService.reaccionesDe(id, req.user.id);
+  }
 }

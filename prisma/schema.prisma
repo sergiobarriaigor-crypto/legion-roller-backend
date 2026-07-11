@@ -53,6 +53,7 @@ model Miembro {
   historias                Historia[]                @relation("HistoriaAutor")
   historiasMencionado      Historia[]                @relation("HistoriaMencion")
   vistasHistoria           VistaHistoria[]
+  reaccionesHistoria       ReaccionHistoria[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -299,10 +300,27 @@ model Historia {
   mencionY     Float?
   createdAt DateTime @default(now())
 
-  vistas VistaHistoria[]
+  vistas     VistaHistoria[]
+  reacciones ReaccionHistoria[]
 
   @@index([autorId])
   @@index([mencionadoId])
+}
+
+// Reacción rápida a una historia (el "patín dorado" de Legión Roller, en vez
+// del corazón de Instagram) — un solo tipo de reacción, igual patrón que
+// ReaccionPost. `leida` es la notificación liviana para el autor: se marca
+// en `true` cuando el autor consulta la lista de quién reaccionó.
+model ReaccionHistoria {
+  id         Int      @id @default(autoincrement())
+  historiaId Int
+  historia   Historia @relation(fields: [historiaId], references: [id])
+  miembroId  Int
+  miembro    Miembro  @relation(fields: [miembroId], references: [id])
+  leida      Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([historiaId, miembroId])
 }
 
 // Qué historias ya vio cada miembro. Es por historia individual (no "leído hasta una
