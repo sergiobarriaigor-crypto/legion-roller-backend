@@ -344,17 +344,20 @@ model ReaccionHistoria {
 
 // Mensaje enviado a una historia mientras se está viendo. Se retransmite en
 // vivo por WebSocket (burbuja flotante, ver HistoriasGateway) Y se guarda acá
-// para que el autor pueda revisarlo más tarde, aunque no haya estado
-// conectado en el momento — mismo patrón "solo el autor puede verlo" que
-// ReaccionHistoria (no es un muro público de comentarios, es privado).
+// para que cualquiera pueda revisarlo más tarde (visible a todos, igual que
+// ComentarioPost — no es un inbox privado del autor). Puede responder a otro
+// comentario existente (`respuestaAId`), formando un hilo de un solo nivel.
 model ComentarioHistoria {
-  id         Int      @id @default(autoincrement())
-  historiaId Int
-  historia   Historia @relation(fields: [historiaId], references: [id])
-  autorId    Int
-  autor      Miembro  @relation(fields: [autorId], references: [id])
-  texto      String
-  createdAt  DateTime @default(now())
+  id           Int                  @id @default(autoincrement())
+  historiaId   Int
+  historia     Historia             @relation(fields: [historiaId], references: [id])
+  autorId      Int
+  autor        Miembro              @relation(fields: [autorId], references: [id])
+  texto        String
+  respuestaAId Int?
+  respuestaA   ComentarioHistoria?  @relation("RespuestasComentarioHistoria", fields: [respuestaAId], references: [id])
+  respuestas   ComentarioHistoria[] @relation("RespuestasComentarioHistoria")
+  createdAt    DateTime             @default(now())
 
   @@index([historiaId])
 }

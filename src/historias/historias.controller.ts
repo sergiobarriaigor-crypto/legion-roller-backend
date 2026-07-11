@@ -76,11 +76,23 @@ export class HistoriasController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id/comentarios')
-  comentarios(
+  comentarios(@Param('id', ParseIntPipe) id: number) {
+    return this.historiasService.comentariosDe(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id/comentarios/:comentarioId')
+  eliminarComentario(
     @Req() req: RequestConUsuario,
     @Param('id', ParseIntPipe) id: number,
+    @Param('comentarioId', ParseIntPipe) comentarioId: number,
   ) {
-    return this.historiasService.comentariosDe(id, req.user.id);
+    return this.historiasService.eliminarComentario(
+      id,
+      comentarioId,
+      req.user.id,
+      req.user.rol,
+    );
   }
 
   @UseGuards(JwtAuthGuard)

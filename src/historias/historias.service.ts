@@ -271,14 +271,11 @@ export class HistoriasService {
     return { reaccionesCount: total, miReaccion: !existente };
   }
 
-  // Solo el autor puede ver quién reaccionó (misma lógica que Instagram: la
-  // lista de "quién reaccionó a tu historia" es privada del autor). Al
-  // consultarla se marcan como leídas, apagando la notificación liviana.
+  // Visible para cualquiera (como "a quién le gustó" en Posts). Solo cuando
+  // la consulta el propio autor se marcan como leídas (apaga su notificación
+  // liviana) — si la mira otra persona, no debe alterar ese estado.
   async reaccionesDe(historiaId: number, miembroIdSolicitante: number) {
     const historia = await this.obtenerOFallar(historiaId);
-    if (historia.autorId !== miembroIdSolicitante) {
-      throw new ForbiddenException('Solo el autor puede ver quién reaccionó');
-    }
 
     const reacciones = await this.prisma.reaccionHistoria.findMany({
       where: { historiaId },
@@ -288,10 +285,12 @@ export class HistoriasService {
       },
     });
 
-    await this.prisma.reaccionHistoria.updateMany({
-      where: { historiaId, leida: false },
-      data: { leida: true },
-    });
+    if (historia.autorId === miembroIdSolicitante) {
+      await this.prisma.reaccionHistoria.updateMany({
+        where: { historiaId, leida: false },
+        data: { leida: true },
+      });
+    }
 
     return reacciones.map((r) => ({
       miembroId: r.miembro.id,
@@ -301,13 +300,10 @@ export class HistoriasService {
     }));
   }
 
-  // Igual criterio que reaccionesDe: solo el autor puede revisar los mensajes
-  // que le dejaron en su historia (no es un muro público de comentarios).
-  async comentariosDe(historiaId: number, miembroIdSolicitante: number) {
-    const historia = await this.obtenerOFallar(historiaId);
-    if (historia.autorId !== miembroIdSolicitante) {
-      throw new ForbiddenException('Solo el autor puede ver los comentarios');
-    }
+  // Visible para cualquiera, como los comentarios de un Post — no es un
+  // inbox privado del autor. `respuestaAId` deja armar el hilo en el cliente.
+  async comentariosDe(historiaId: number) {
+    await this.obtenerOFallar(historiaId);
 
     const comentarios = await this.prisma.comentarioHistoria.findMany({
       where: { historiaId },
@@ -323,8 +319,42 @@ export class HistoriasService {
       nombre: c.autor.nombre,
       fotoUrl: c.autor.fotoUrl,
       texto: c.texto,
+      respuestaAId: c.respuestaAId,
       createdAt: c.createdAt,
     }));
+  }
+
+  // Puede eliminarlo el propio autor del comentario, el dueño de la historia,
+  // o un admin — igual criterio que el resto de la app. Se borran también sus
+  // respuestas directas (el hilo solo tiene un nivel, así que alcanza con eso).
+  async eliminarComentario(
+    historiaId: number,
+    comentarioId: number,
+    miembroId: number,
+    rol: string,
+  ) {
+    const historia = await this.obtenerOFallar(historiaId);
+    const comentario = await this.prisma.comentarioHistoria.findUnique({
+      where: { id: comentarioId },
+    });
+    if (!comentario || comentario.historiaId !== historiaId) {
+      throw new NotFoundException('Comentario no encontrado');
+    }
+    const puedeEliminar =
+      comentario.autorId === miembroId ||
+      historia.autorId === miembroId ||
+      rol === 'admin';
+    if (!puedeEliminar) {
+      throw new ForbiddenException('No puedes eliminar este comentario');
+    }
+
+    await this.prisma.comentarioHistoria.deleteMany({
+      where: { respuestaAId: comentarioId },
+    });
+    await this.prisma.comentarioHistoria.delete({
+      where: { id: comentarioId },
+    });
+    return { mensaje: 'Comentario eliminado' };
   }
 
   // El mencionado decide si la historia también aparece bajo su propio

@@ -71,24 +71,48 @@ export class HistoriasGateway implements OnGatewayConnection {
   }
 
   // Se retransmite de inmediato (burbuja flotante) y además se guarda, para
-  // que el autor pueda verlo más tarde desde "Ver comentarios".
+  // que cualquiera pueda verlo más tarde desde "Ver comentarios". Puede venir
+  // con `respuestaAId` para responder a un comentario existente (hilo de un
+  // solo nivel: solo se acepta si el objetivo no es a su vez una respuesta).
   @SubscribeMessage('historia:mensaje')
   async mensaje(
     @ConnectedSocket() client: SocketAutenticado,
-    @MessageBody() data: { historiaId: number; texto: string },
+    @MessageBody()
+    data: { historiaId: number; texto: string; respuestaAId?: number },
   ) {
     const texto = data?.texto?.trim().slice(0, 200);
     const miembroId = client.data.miembroId;
     if (!miembroId || !texto) return;
 
+    let respuestaAId: number | null = null;
+    if (data.respuestaAId) {
+      const objetivo = await this.prisma.comentarioHistoria.findUnique({
+        where: { id: data.respuestaAId },
+      });
+      if (
+        objetivo &&
+        objetivo.historiaId === data.historiaId &&
+        !objetivo.respuestaAId
+      ) {
+        respuestaAId = objetivo.id;
+      }
+    }
+
     const comentario = await this.prisma.comentarioHistoria.create({
-      data: { historiaId: data.historiaId, autorId: miembroId, texto },
+      data: {
+        historiaId: data.historiaId,
+        autorId: miembroId,
+        texto,
+        respuestaAId,
+      },
     });
 
     this.server.to(nombreSala(data.historiaId)).emit('historia:mensaje', {
+      id: comentario.id,
       miembroId,
       nombre: client.data.nombre,
       texto,
+      respuestaAId,
       createdAt: comentario.createdAt.toISOString(),
     });
   }
