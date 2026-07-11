@@ -54,6 +54,7 @@ model Miembro {
   vistasHistoria           VistaHistoria[]
   reaccionesHistoria       ReaccionHistoria[]
   mencionesHistoria        MencionHistoria[]
+  comentariosHistoria      ComentarioHistoria[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -293,9 +294,10 @@ model Historia {
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
   createdAt DateTime @default(now())
 
-  vistas     VistaHistoria[]
-  reacciones ReaccionHistoria[]
-  menciones  MencionHistoria[]
+  vistas      VistaHistoria[]
+  reacciones  ReaccionHistoria[]
+  menciones   MencionHistoria[]
+  comentarios ComentarioHistoria[]
 
   @@index([autorId])
 }
@@ -338,6 +340,23 @@ model ReaccionHistoria {
   createdAt  DateTime @default(now())
 
   @@unique([historiaId, miembroId])
+}
+
+// Mensaje enviado a una historia mientras se está viendo. Se retransmite en
+// vivo por WebSocket (burbuja flotante, ver HistoriasGateway) Y se guarda acá
+// para que el autor pueda revisarlo más tarde, aunque no haya estado
+// conectado en el momento — mismo patrón "solo el autor puede verlo" que
+// ReaccionHistoria (no es un muro público de comentarios, es privado).
+model ComentarioHistoria {
+  id         Int      @id @default(autoincrement())
+  historiaId Int
+  historia   Historia @relation(fields: [historiaId], references: [id])
+  autorId    Int
+  autor      Miembro  @relation(fields: [autorId], references: [id])
+  texto      String
+  createdAt  DateTime @default(now())
+
+  @@index([historiaId])
 }
 
 // Qué historias ya vio cada miembro. Es por historia individual (no "leído hasta una

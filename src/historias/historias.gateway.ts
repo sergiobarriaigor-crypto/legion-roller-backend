@@ -9,6 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface JwtPayload {
   sub: number;
@@ -24,15 +25,18 @@ function nombreSala(historiaId: number) {
 }
 
 // Mensajes flotantes en vivo sobre una historia (estilo comentarios de un
-// live): a diferencia de la mención/reacción persistente ya existente, esto
-// NO se guarda en ningún lado — solo se retransmite a quien esté viendo esa
-// misma historia en ese momento, mientras la tenga abierta.
+// live): se retransmiten de inmediato a quien esté viendo esa misma historia
+// en ese momento, Y se guardan como ComentarioHistoria para que el autor
+// pueda revisarlos más tarde aunque no haya estado conectado.
 @WebSocketGateway({ cors: { origin: '*' } })
 export class HistoriasGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(HistoriasGateway.name);
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
   handleConnection(client: SocketAutenticado) {
     const token = client.handshake.auth?.token as string | undefined;
@@ -66,19 +70,26 @@ export class HistoriasGateway implements OnGatewayConnection {
     void client.leave(nombreSala(historiaId));
   }
 
-  // Texto libre, efímero — no persiste, solo se retransmite en vivo.
+  // Se retransmite de inmediato (burbuja flotante) y además se guarda, para
+  // que el autor pueda verlo más tarde desde "Ver comentarios".
   @SubscribeMessage('historia:mensaje')
-  mensaje(
+  async mensaje(
     @ConnectedSocket() client: SocketAutenticado,
     @MessageBody() data: { historiaId: number; texto: string },
   ) {
     const texto = data?.texto?.trim().slice(0, 200);
-    if (!client.data.miembroId || !texto) return;
+    const miembroId = client.data.miembroId;
+    if (!miembroId || !texto) return;
+
+    const comentario = await this.prisma.comentarioHistoria.create({
+      data: { historiaId: data.historiaId, autorId: miembroId, texto },
+    });
+
     this.server.to(nombreSala(data.historiaId)).emit('historia:mensaje', {
-      miembroId: client.data.miembroId,
+      miembroId,
       nombre: client.data.nombre,
       texto,
-      createdAt: new Date().toISOString(),
+      createdAt: comentario.createdAt.toISOString(),
     });
   }
 

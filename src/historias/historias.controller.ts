@@ -75,6 +75,15 @@ export class HistoriasController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':id/comentarios')
+  comentarios(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.historiasService.comentariosDe(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/mencion')
   responderMencion(
     @Req() req: RequestConUsuario,

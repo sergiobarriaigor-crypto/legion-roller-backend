@@ -88,6 +88,7 @@ export class HistoriasService {
           },
         },
         reacciones: { select: { miembroId: true, leida: true } },
+        _count: { select: { comentarios: true } },
       },
     });
 
@@ -198,6 +199,7 @@ export class HistoriasService {
             miReaccion: h.reacciones.some(
               (r) => r.miembroId === miembroIdActual,
             ),
+            comentariosCount: h._count.comentarios,
             createdAt: h.createdAt,
           };
         }),
@@ -234,6 +236,9 @@ export class HistoriasService {
       where: { historiaId: id },
     });
     await this.prisma.mencionHistoria.deleteMany({ where: { historiaId: id } });
+    await this.prisma.comentarioHistoria.deleteMany({
+      where: { historiaId: id },
+    });
     await this.prisma.historia.delete({ where: { id } });
     return { mensaje: 'Historia eliminada' };
   }
@@ -293,6 +298,32 @@ export class HistoriasService {
       nombre: r.miembro.nombre,
       fotoUrl: r.miembro.fotoUrl,
       createdAt: r.createdAt,
+    }));
+  }
+
+  // Igual criterio que reaccionesDe: solo el autor puede revisar los mensajes
+  // que le dejaron en su historia (no es un muro público de comentarios).
+  async comentariosDe(historiaId: number, miembroIdSolicitante: number) {
+    const historia = await this.obtenerOFallar(historiaId);
+    if (historia.autorId !== miembroIdSolicitante) {
+      throw new ForbiddenException('Solo el autor puede ver los comentarios');
+    }
+
+    const comentarios = await this.prisma.comentarioHistoria.findMany({
+      where: { historiaId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        autor: { select: { id: true, nombre: true, fotoUrl: true } },
+      },
+    });
+
+    return comentarios.map((c) => ({
+      id: c.id,
+      miembroId: c.autor.id,
+      nombre: c.autor.nombre,
+      fotoUrl: c.autor.fotoUrl,
+      texto: c.texto,
+      createdAt: c.createdAt,
     }));
   }
 
