@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 export class CrearHistoriaDto {
   @IsIn(['foto', 'video'])
@@ -22,4 +22,17 @@ export class CrearHistoriaDto {
   @IsOptional()
   @IsString()
   ubicacion?: string;
+
+  // Mención de otro integrante (pegatina "@nombre" arrastrable sobre la imagen).
+  @IsOptional()
+  @IsInt()
+  mencionadoId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  mencionX?: number;
+
+  @IsOptional()
+  @IsNumber()
+  mencionY?: number;
 }

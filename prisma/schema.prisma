@@ -50,7 +50,8 @@ model Miembro {
   mensajesChat             MensajeChat[]
   lecturasChat             LecturaChat[]
   emergencias              Emergencia[]
-  historias                Historia[]
+  historias                Historia[]                @relation("HistoriaAutor")
+  historiasMencionado      Historia[]                @relation("HistoriaMencion")
   vistasHistoria           VistaHistoria[]
 }
 
@@ -280,7 +281,7 @@ model Emergencia {
 model Historia {
   id        Int      @id @default(autoincrement())
   autorId   Int
-  autor     Miembro  @relation(fields: [autorId], references: [id])
+  autor     Miembro  @relation("HistoriaAutor", fields: [autorId], references: [id])
   tipo      String // "foto" | "video"
   mediaUrl  String
   texto     String? // texto superpuesto opcional (contenido plano)
@@ -289,11 +290,19 @@ model Historia {
   // opaco para el backend, solo el frontend lo arma/interpreta.
   textoEstilo String?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
+  // Mención de otro integrante sobre la imagen (pegatina "@nombre", estilo
+  // Instagram), con posición arrastrable — igual dinámica que el texto, pero
+  // sin escala/rotación. mencionX/mencionY son fracciones 0..1 del contenedor.
+  mencionadoId Int?
+  mencionado   Miembro? @relation("HistoriaMencion", fields: [mencionadoId], references: [id])
+  mencionX     Float?
+  mencionY     Float?
   createdAt DateTime @default(now())
 
   vistas VistaHistoria[]
 
   @@index([autorId])
+  @@index([mencionadoId])
 }
 
 // Qué historias ya vio cada miembro. Es por historia individual (no "leído hasta una

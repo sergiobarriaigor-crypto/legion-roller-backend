@@ -27,6 +27,10 @@ export class HistoriasService {
         `Ya tienes ${MAX_HISTORIAS_ACTIVAS} historias activas. Espera a que alguna expire (24h) o elimina una para publicar una nueva.`,
       );
     }
+    if (dto.mencionadoId) {
+      const existe = await this.prisma.miembro.findUnique({ where: { id: dto.mencionadoId } });
+      if (!existe) throw new NotFoundException('El miembro mencionado no existe');
+    }
     return this.prisma.historia.create({ data: { ...dto, autorId } });
   }
 
@@ -34,7 +38,10 @@ export class HistoriasService {
     const historias = await this.prisma.historia.findMany({
       where: { createdAt: { gte: this.limiteVigencia() } },
       orderBy: { createdAt: 'asc' },
-      include: { autor: { select: { id: true, nombre: true, fotoUrl: true } } },
+      include: {
+        autor: { select: { id: true, nombre: true, fotoUrl: true } },
+        mencionado: { select: { id: true, nombre: true } },
+      },
     });
 
     if (historias.length === 0) return [];
@@ -81,6 +88,10 @@ export class HistoriasService {
           texto: h.texto,
           textoEstilo: h.textoEstilo,
           ubicacion: h.ubicacion,
+          mencionadoId: h.mencionado?.id ?? null,
+          mencionadoNombre: h.mencionado?.nombre ?? null,
+          mencionX: h.mencionX,
+          mencionY: h.mencionY,
           createdAt: h.createdAt,
         })),
       }))
