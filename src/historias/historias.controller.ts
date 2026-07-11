@@ -15,7 +15,7 @@ import { CrearHistoriaDto } from './dto/crear-historia.dto';
 import { ResponderMencionDto } from './dto/responder-mencion.dto';
 
 interface RequestConUsuario {
-  user: { id: number; rol: string };
+  user: { id: number; rol: string; nombre: string };
 }
 
 @Controller('historias')
@@ -36,25 +36,41 @@ export class HistoriasController {
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/vista')
-  marcarVista(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+  marcarVista(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     return this.historiasService.marcarVista(id, req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  eliminar(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+  eliminar(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     return this.historiasService.eliminar(id, req.user.id, req.user.rol);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/reaccion')
-  toggleReaccion(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
-    return this.historiasService.toggleReaccion(id, req.user.id);
+  toggleReaccion(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.historiasService.toggleReaccion(
+      id,
+      req.user.id,
+      req.user.nombre,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(':id/reacciones')
-  reacciones(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+  reacciones(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     return this.historiasService.reaccionesDe(id, req.user.id);
   }
 
