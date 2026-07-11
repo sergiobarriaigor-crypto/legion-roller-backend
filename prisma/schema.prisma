@@ -51,9 +51,9 @@ model Miembro {
   lecturasChat             LecturaChat[]
   emergencias              Emergencia[]
   historias                Historia[]                @relation("HistoriaAutor")
-  historiasMencionado      Historia[]                @relation("HistoriaMencion")
   vistasHistoria           VistaHistoria[]
   reaccionesHistoria       ReaccionHistoria[]
+  mencionesHistoria        MencionHistoria[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -291,25 +291,37 @@ model Historia {
   // opaco para el backend, solo el frontend lo arma/interpreta.
   textoEstilo String?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
-  // Mención de otro integrante sobre la imagen (pegatina "@nombre", estilo
-  // Instagram), con posición arrastrable — igual dinámica que el texto, pero
-  // sin escala/rotación. mencionX/mencionY son fracciones 0..1 del contenedor.
-  mencionadoId Int?
-  mencionado   Miembro? @relation("HistoriaMencion", fields: [mencionadoId], references: [id])
-  mencionX     Float?
-  mencionY     Float?
-  // null = el mencionado todavía no respondió; true = aceptó que también
-  // aparezca bajo su propio avatar en la barra (sigue viéndose igual bajo el
-  // autor original); false = rechazó. Sin sistema de seguidores: el efecto es
-  // solo que la MISMA historia se agrupa también bajo el mencionado.
-  mencionAceptada Boolean?
   createdAt DateTime @default(now())
 
   vistas     VistaHistoria[]
   reacciones ReaccionHistoria[]
+  menciones  MencionHistoria[]
 
   @@index([autorId])
-  @@index([mencionadoId])
+}
+
+// Mención de otro integrante sobre la imagen (pegatina "@nombre", estilo
+// Instagram) — hasta MAX_MENCIONES_POR_HISTORIA (5) por historia, cada una
+// con su propia posición y escala arrastrable/pellizcable (igual dinámica que
+// el texto, pero sin rotación). x/y son fracciones 0..1 del contenedor.
+// aceptada: null = el mencionado todavía no respondió; true = aceptó que
+// también aparezca bajo su propio avatar en la barra (sigue viéndose igual
+// bajo el autor original); false = rechazó. Sin sistema de seguidores: el
+// efecto de aceptar es solo que la MISMA historia se agrupa también bajo el
+// mencionado, no una copia.
+model MencionHistoria {
+  id         Int      @id @default(autoincrement())
+  historiaId Int
+  historia   Historia @relation(fields: [historiaId], references: [id])
+  miembroId  Int
+  miembro    Miembro  @relation(fields: [miembroId], references: [id])
+  x          Float
+  y          Float
+  escala     Float    @default(1)
+  aceptada   Boolean?
+  createdAt  DateTime @default(now())
+
+  @@unique([historiaId, miembroId])
 }
 
 // Reacción rápida a una historia (el "patín dorado" de Legión Roller, en vez

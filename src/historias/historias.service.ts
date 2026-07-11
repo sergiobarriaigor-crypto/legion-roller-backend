@@ -9,6 +9,7 @@ import { CrearHistoriaDto } from './dto/crear-historia.dto';
 
 const HORAS_VIGENCIA_HISTORIA = 24;
 const MAX_HISTORIAS_ACTIVAS = 10;
+const MAX_MENCIONES_POR_HISTORIA = 5;
 
 @Injectable()
 export class HistoriasService {
@@ -27,11 +28,44 @@ export class HistoriasService {
         `Ya tienes ${MAX_HISTORIAS_ACTIVAS} historias activas. Espera a que alguna expire (24h) o elimina una para publicar una nueva.`,
       );
     }
-    if (dto.mencionadoId) {
-      const existe = await this.prisma.miembro.findUnique({ where: { id: dto.mencionadoId } });
-      if (!existe) throw new NotFoundException('El miembro mencionado no existe');
+
+    const { menciones, ...datosHistoria } = dto;
+
+    if (menciones && menciones.length > 0) {
+      if (menciones.length > MAX_MENCIONES_POR_HISTORIA) {
+        throw new ConflictException(
+          `Solo puedes mencionar hasta ${MAX_MENCIONES_POR_HISTORIA} personas por historia.`,
+        );
+      }
+      const idsUnicos = new Set(menciones.map((m) => m.miembroId));
+      if (idsUnicos.size !== menciones.length) {
+        throw new ConflictException('No puedes mencionar a la misma persona más de una vez.');
+      }
+      const existentes = await this.prisma.miembro.count({
+        where: { id: { in: [...idsUnicos] } },
+      });
+      if (existentes !== idsUnicos.size) {
+        throw new NotFoundException('Alguno de los miembros mencionados no existe');
+      }
     }
-    return this.prisma.historia.create({ data: { ...dto, autorId } });
+
+    return this.prisma.historia.create({
+      data: {
+        ...datosHistoria,
+        autorId,
+        menciones: menciones?.length
+          ? {
+              create: menciones.map((m) => ({
+                miembroId: m.miembroId,
+                x: m.x,
+                y: m.y,
+                escala: m.escala ?? 1,
+              })),
+            }
+          : undefined,
+      },
+      include: { menciones: true },
+    });
   }
 
   async listarAgrupadas(miembroIdActual: number) {
@@ -40,7 +74,7 @@ export class HistoriasService {
       orderBy: { createdAt: 'asc' },
       include: {
         autor: { select: { id: true, nombre: true, fotoUrl: true } },
-        mencionado: { select: { id: true, nombre: true, fotoUrl: true } },
+        menciones: { include: { miembro: { select: { id: true, nombre: true, fotoUrl: true } } } },
         reacciones: { select: { miembroId: true, leida: true } },
       },
     });
@@ -81,14 +115,13 @@ export class HistoriasService {
 
     for (const h of historias) {
       agregarA(h.autorId, h.autor.nombre, h.autor.fotoUrl, { ...h, compartida: false });
-      // Mención aceptada: la MISMA historia también se agrupa bajo el avatar
-      // del mencionado (sin sistema de seguidores — solo se re-agrupa, no se
-      // duplica el registro).
-      if (h.mencionadoId && h.mencionAceptada && h.mencionado) {
-        agregarA(h.mencionadoId, h.mencionado.nombre, h.mencionado.fotoUrl, {
-          ...h,
-          compartida: true,
-        });
+      // Cada mención aceptada re-agrupa la MISMA historia también bajo el
+      // avatar de esa persona (sin sistema de seguidores, sin duplicar el
+      // registro) — hasta 5 personas distintas pueden compartir una historia.
+      for (const m of h.menciones) {
+        if (m.aceptada) {
+          agregarA(m.miembroId, m.miembro.nombre, m.miembro.fotoUrl, { ...h, compartida: true });
+        }
       }
     }
 
@@ -104,29 +137,36 @@ export class HistoriasService {
         reaccionesSinLeer:
           g.autorId === miembroIdActual &&
           g.historias.some((h) => !h.compartida && h.reacciones.some((r) => !r.leida)),
-        historias: g.historias.map((h) => ({
-          id: h.id,
-          autorId: h.autorId,
-          autorNombre: h.autor.nombre,
-          autorFotoUrl: h.autor.fotoUrl,
-          compartida: h.compartida,
-          tipo: h.tipo,
-          mediaUrl: h.mediaUrl,
-          texto: h.texto,
-          textoEstilo: h.textoEstilo,
-          ubicacion: h.ubicacion,
-          mencionadoId: h.mencionado?.id ?? null,
-          mencionadoNombre: h.mencionado?.nombre ?? null,
-          mencionX: h.mencionX,
-          mencionY: h.mencionY,
-          mencionAceptada: h.mencionAceptada,
-          // Notificación de mención: se apaga sola apenas el mencionado ve
-          // esta historia (reusa VistaHistoria, no hace falta un campo nuevo).
-          mencionSinVer: h.mencionadoId === miembroIdActual && !idsVistos.has(h.id),
-          reaccionesCount: h.reacciones.length,
-          miReaccion: h.reacciones.some((r) => r.miembroId === miembroIdActual),
-          createdAt: h.createdAt,
-        })),
+        historias: g.historias.map((h) => {
+          const miMencion = h.menciones.find((m) => m.miembroId === miembroIdActual);
+          return {
+            id: h.id,
+            autorId: h.autorId,
+            autorNombre: h.autor.nombre,
+            autorFotoUrl: h.autor.fotoUrl,
+            compartida: h.compartida,
+            tipo: h.tipo,
+            mediaUrl: h.mediaUrl,
+            texto: h.texto,
+            textoEstilo: h.textoEstilo,
+            ubicacion: h.ubicacion,
+            menciones: h.menciones.map((m) => ({
+              miembroId: m.miembroId,
+              nombre: m.miembro.nombre,
+              fotoUrl: m.miembro.fotoUrl,
+              x: m.x,
+              y: m.y,
+              escala: m.escala,
+              aceptada: m.aceptada,
+            })),
+            // Notificación de mención: se apaga sola apenas el mencionado ve
+            // esta historia (reusa VistaHistoria, no hace falta un campo nuevo).
+            mencionSinVer: !!miMencion && miMencion.aceptada === null && !idsVistos.has(h.id),
+            reaccionesCount: h.reacciones.length,
+            miReaccion: h.reacciones.some((r) => r.miembroId === miembroIdActual),
+            createdAt: h.createdAt,
+          };
+        }),
       }))
       .sort((a, b) => {
         if (a.vistoCompleto !== b.vistoCompleto) return a.vistoCompleto ? 1 : -1;
@@ -154,6 +194,7 @@ export class HistoriasService {
     }
     await this.prisma.vistaHistoria.deleteMany({ where: { historiaId: id } });
     await this.prisma.reaccionHistoria.deleteMany({ where: { historiaId: id } });
+    await this.prisma.mencionHistoria.deleteMany({ where: { historiaId: id } });
     await this.prisma.historia.delete({ where: { id } });
     return { mensaje: 'Historia eliminada' };
   }
@@ -206,16 +247,19 @@ export class HistoriasService {
 
   // El mencionado decide si la historia también aparece bajo su propio
   // avatar en la barra (sin sistema de seguidores: sigue siendo la misma
-  // historia, solo se re-agrupa también bajo él). Solo el mencionado puede
-  // responder, y solo mientras no haya respondido antes.
+  // historia, solo se re-agrupa también bajo él). Solo esa persona puede
+  // responder su propia mención.
   async responderMencion(historiaId: number, miembroId: number, aceptar: boolean) {
-    const historia = await this.obtenerOFallar(historiaId);
-    if (historia.mencionadoId !== miembroId) {
-      throw new ForbiddenException('Solo la persona mencionada puede responder');
+    await this.obtenerOFallar(historiaId);
+    const mencion = await this.prisma.mencionHistoria.findUnique({
+      where: { historiaId_miembroId: { historiaId, miembroId } },
+    });
+    if (!mencion) {
+      throw new ForbiddenException('No fuiste mencionado en esta historia');
     }
-    await this.prisma.historia.update({
-      where: { id: historiaId },
-      data: { mencionAceptada: aceptar },
+    await this.prisma.mencionHistoria.update({
+      where: { id: mencion.id },
+      data: { aceptada: aceptar },
     });
     return { mencionAceptada: aceptar };
   }

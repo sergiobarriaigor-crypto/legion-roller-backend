@@ -1,4 +1,32 @@
-import { IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+// Mención de un integrante sobre la imagen (pegatina "@nombre" arrastrable y
+// pellizcable), igual dinámica que el texto pero sin rotación.
+export class MencionInputDto {
+  @IsInt()
+  miembroId: number;
+
+  @IsNumber()
+  x: number;
+
+  @IsNumber()
+  y: number;
+
+  @IsOptional()
+  @IsNumber()
+  escala?: number;
+}
 
 export class CrearHistoriaDto {
   @IsIn(['foto', 'video'])
@@ -23,16 +51,10 @@ export class CrearHistoriaDto {
   @IsString()
   ubicacion?: string;
 
-  // Mención de otro integrante (pegatina "@nombre" arrastrable sobre la imagen).
+  // Hasta MAX_MENCIONES_POR_HISTORIA (5, validado también en el servicio).
   @IsOptional()
-  @IsInt()
-  mencionadoId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  mencionX?: number;
-
-  @IsOptional()
-  @IsNumber()
-  mencionY?: number;
+  @ValidateNested({ each: true })
+  @Type(() => MencionInputDto)
+  @ArrayMaxSize(5)
+  menciones?: MencionInputDto[];
 }
