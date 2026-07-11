@@ -357,6 +357,49 @@ export class HistoriasService {
     return { mensaje: 'Comentario eliminado' };
   }
 
+  // Para la campana del header: respuestas a MIS comentarios que todavía no
+  // vi. Solo cuenta historias que siguen activas (si ya expiró, no hay nada
+  // que ir a ver). No se cuenta una respuesta a uno mismo.
+  async respuestasSinLeer(miembroId: number) {
+    const respuestas = await this.prisma.comentarioHistoria.findMany({
+      where: {
+        leida: false,
+        autorId: { not: miembroId },
+        respuestaA: { autorId: miembroId },
+        historia: { createdAt: { gte: this.limiteVigencia() } },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        autor: { select: { id: true, nombre: true } },
+      },
+    });
+
+    return respuestas.map((r) => ({
+      id: r.id,
+      historiaId: r.historiaId,
+      autorNombre: r.autor.nombre,
+      texto: r.texto,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  // Solo la persona a la que le respondieron puede apagar su propia
+  // notificación (evita que cualquiera marque leídas las de otro).
+  async marcarRespuestaLeida(comentarioId: number, miembroId: number) {
+    const comentario = await this.prisma.comentarioHistoria.findUnique({
+      where: { id: comentarioId },
+      include: { respuestaA: { select: { autorId: true } } },
+    });
+    if (!comentario || comentario.respuestaA?.autorId !== miembroId) {
+      throw new ForbiddenException('No puedes marcar esta notificación');
+    }
+    await this.prisma.comentarioHistoria.update({
+      where: { id: comentarioId },
+      data: { leida: true },
+    });
+    return { leida: true };
+  }
+
   // El mencionado decide si la historia también aparece bajo su propio
   // avatar en la barra (sin sistema de seguidores: sigue siendo la misma
   // historia, solo se re-agrupa también bajo él). Solo esa persona puede

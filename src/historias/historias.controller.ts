@@ -34,6 +34,25 @@ export class HistoriasController {
     return this.historiasService.crear(req.user.id, dto);
   }
 
+  // Para la campana del header: respuestas a mis comentarios sin leer.
+  @UseGuards(JwtAuthGuard)
+  @Get('notificaciones/respuestas')
+  respuestasSinLeer(@Req() req: RequestConUsuario) {
+    return this.historiasService.respuestasSinLeer(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('notificaciones/respuestas/:comentarioId/leida')
+  marcarRespuestaLeida(
+    @Req() req: RequestConUsuario,
+    @Param('comentarioId', ParseIntPipe) comentarioId: number,
+  ) {
+    return this.historiasService.marcarRespuestaLeida(
+      comentarioId,
+      req.user.id,
+    );
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post(':id/vista')
   marcarVista(
