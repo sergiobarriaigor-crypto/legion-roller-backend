@@ -108,6 +108,7 @@ export class HistoriasService {
           id: h.id,
           autorId: h.autorId,
           autorNombre: h.autor.nombre,
+          autorFotoUrl: h.autor.fotoUrl,
           compartida: h.compartida,
           tipo: h.tipo,
           mediaUrl: h.mediaUrl,
