@@ -6,7 +6,7 @@ export class MensajeDto {
   texto: string;
 
   @IsOptional()
-  @IsIn(['post', 'emprendedor'])
+  @IsIn(['post', 'emprendedor', 'historia'])
   referenciaTipo?: string;
 
   @IsOptional()
