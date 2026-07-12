@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class ActualizarPostDto {
   @IsOptional()
@@ -14,6 +14,15 @@ export class ActualizarPostDto {
   ubicacion?: string;
 
   @IsOptional()
+  @IsIn(['foto', 'video'])
+  tipo?: 'foto' | 'video';
+
+  @IsOptional()
+  @IsArray()
+  @IsUrl({ require_tld: false }, { each: true })
+  fotos?: string[];
+
+  @IsOptional()
   @IsUrl({ require_tld: false })
-  fotoUrl?: string;
+  videoUrl?: string;
 }

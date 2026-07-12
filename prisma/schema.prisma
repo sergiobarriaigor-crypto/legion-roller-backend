@@ -135,8 +135,8 @@ model RsvpRespuesta {
 
 // Fase 5: feed social "Post" (sección 7 del PDF) — experiencias personales, distinto de Comunidad.
 // Vigencia fija de 7 días (DIAS_VIGENCIA_POST), calculada en el backend igual que Publicacion.
-// La subida real de fotos/video con editor de recorte queda para la Fase 10; por ahora "fotoUrl"
-// es un link opcional a una imagen.
+// Hasta 3 fotos (carrusel) O 1 video, nunca ambos — igual criterio que Historia.tipo.
+// `fotos` es un JSON array de URLs, mismo patrón que Publicacion.fotos.
 model Post {
   id        Int      @id @default(autoincrement())
   autorId   Int
@@ -144,7 +144,9 @@ model Post {
   titulo    String
   resena    String
   ubicacion String?
-  fotoUrl   String?
+  tipo      String   @default("foto") // "foto" | "video"
+  fotos     String?  // JSON array de hasta 3 URLs (cuando tipo = "foto")
+  videoUrl  String?  // cuando tipo = "video"
   createdAt DateTime @default(now())
 
   reacciones  ReaccionPost[]

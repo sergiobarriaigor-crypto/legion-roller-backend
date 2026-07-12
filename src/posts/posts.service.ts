@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,19 +9,21 @@ import { CrearPostDto } from './dto/crear-post.dto';
 import { ActualizarPostDto } from './dto/actualizar-post.dto';
 
 const DIAS_VIGENCIA_POST = 7;
+const MAX_FOTOS_POR_POST = 3;
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
   async listar(autorId?: number) {
-    const limite = new Date(Date.now() - DIAS_VIGENCIA_POST * 24 * 60 * 60 * 1000);
+    const limite = new Date(Date.now() - DIAS_VIGENCIA_POST * MS_POR_DIA);
 
     const posts = await this.prisma.post.findMany({
       where: { createdAt: { gte: limite }, ...(autorId ? { autorId } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
-        autor: { select: { id: true, nombre: true } },
+        autor: { select: { id: true, nombre: true, fotoUrl: true } },
         reacciones: true,
         comentarios: {
           orderBy: { createdAt: 'asc' },
@@ -29,23 +32,32 @@ export class PostsService {
       },
     });
 
-    return posts.map((p) => ({
-      id: p.id,
-      autorId: p.autorId,
-      autorNombre: p.autor.nombre,
-      titulo: p.titulo,
-      resena: p.resena,
-      ubicacion: p.ubicacion,
-      fotoUrl: p.fotoUrl,
-      createdAt: p.createdAt,
-      reaccionesCount: p.reacciones.length,
-      comentarios: p.comentarios.map((c) => ({
-        id: c.id,
-        autorNombre: c.autor.nombre,
-        texto: c.texto,
-        createdAt: c.createdAt,
-      })),
-    }));
+    return posts.map((p) => {
+      const venceEn = new Date(p.createdAt.getTime() + DIAS_VIGENCIA_POST * MS_POR_DIA);
+      const diasRestantes = Math.max(0, Math.ceil((venceEn.getTime() - Date.now()) / MS_POR_DIA));
+
+      return {
+        id: p.id,
+        autorId: p.autorId,
+        autorNombre: p.autor.nombre,
+        autorFotoUrl: p.autor.fotoUrl,
+        titulo: p.titulo,
+        resena: p.resena,
+        ubicacion: p.ubicacion,
+        tipo: p.tipo as 'foto' | 'video',
+        fotos: p.fotos ? (JSON.parse(p.fotos) as string[]) : [],
+        videoUrl: p.videoUrl,
+        createdAt: p.createdAt,
+        diasRestantes,
+        reaccionesCount: p.reacciones.length,
+        comentarios: p.comentarios.map((c) => ({
+          id: c.id,
+          autorNombre: c.autor.nombre,
+          texto: c.texto,
+          createdAt: c.createdAt,
+        })),
+      };
+    });
   }
 
   async misReacciones(miembroId: number) {
@@ -57,7 +69,21 @@ export class PostsService {
   }
 
   crear(autorId: number, dto: CrearPostDto) {
-    return this.prisma.post.create({ data: { ...dto, autorId } });
+    const { fotos, tipo, videoUrl, ...resto } = dto;
+    if (fotos && fotos.length > MAX_FOTOS_POR_POST) {
+      throw new ConflictException(
+        `Cada publicación admite un máximo de ${MAX_FOTOS_POR_POST} fotografías.`,
+      );
+    }
+    return this.prisma.post.create({
+      data: {
+        ...resto,
+        autorId,
+        tipo: tipo ?? 'foto',
+        fotos: tipo === 'video' ? undefined : fotos && fotos.length > 0 ? JSON.stringify(fotos) : undefined,
+        videoUrl: tipo === 'video' ? videoUrl : undefined,
+      },
+    });
   }
 
   async actualizar(id: number, autorId: number, dto: ActualizarPostDto) {
@@ -65,7 +91,21 @@ export class PostsService {
     if (post.autorId !== autorId) {
       throw new ForbiddenException('Solo puedes editar tus propios posts');
     }
-    return this.prisma.post.update({ where: { id }, data: dto });
+    const { fotos, tipo, videoUrl, ...resto } = dto;
+    if (fotos && fotos.length > MAX_FOTOS_POR_POST) {
+      throw new ConflictException(
+        `Cada publicación admite un máximo de ${MAX_FOTOS_POR_POST} fotografías.`,
+      );
+    }
+    return this.prisma.post.update({
+      where: { id },
+      data: {
+        ...resto,
+        ...(tipo ? { tipo } : {}),
+        ...(fotos ? { fotos: JSON.stringify(fotos) } : {}),
+        ...(videoUrl ? { videoUrl } : {}),
+      },
+    });
   }
 
   async eliminar(id: number, miembroId: number, rol: string) {
