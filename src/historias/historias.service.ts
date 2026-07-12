@@ -370,7 +370,7 @@ export class HistoriasService {
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        autor: { select: { id: true, nombre: true } },
+        autor: { select: { id: true, nombre: true, fotoUrl: true } },
       },
     });
 
@@ -378,6 +378,7 @@ export class HistoriasService {
       id: r.id,
       historiaId: r.historiaId,
       autorNombre: r.autor.nombre,
+      autorFotoUrl: r.autor.fotoUrl,
       texto: r.texto,
       createdAt: r.createdAt,
     }));
