@@ -357,9 +357,10 @@ model ComentarioHistoria {
   respuestaAId Int?
   respuestaA   ComentarioHistoria?  @relation("RespuestasComentarioHistoria", fields: [respuestaAId], references: [id])
   respuestas   ComentarioHistoria[] @relation("RespuestasComentarioHistoria")
-  // Solo tiene sentido cuando es una respuesta (respuestaAId no nulo): marca
-  // si el autor del comentario respondido ya vio esta respuesta, para la
-  // notificación de la campana. Empieza en false; se ignora en comentarios raíz.
+  // Para la notificación de la campana: marca si ya se vio este comentario.
+  // En una respuesta (respuestaAId no nulo), aplica al autor del comentario
+  // respondido; en un comentario raíz, aplica al autor de la historia.
+  // Empieza en false.
   leida        Boolean              @default(false)
   createdAt    DateTime             @default(now())
 

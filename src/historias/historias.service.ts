@@ -357,16 +357,21 @@ export class HistoriasService {
     return { mensaje: 'Comentario eliminado' };
   }
 
-  // Para la campana del header: respuestas a MIS comentarios que todavía no
-  // vi. Solo cuenta historias que siguen activas (si ya expiró, no hay nada
-  // que ir a ver). No se cuenta una respuesta a uno mismo.
+  // Para la campana del header: comentarios que me incumben y todavía no vi.
+  // Dos casos, misma metodología: (a) alguien respondió uno de MIS
+  // comentarios, o (b) alguien dejó un comentario raíz en MI historia. Solo
+  // cuenta historias que siguen activas (si ya expiró, no hay nada que ir a
+  // ver). No se cuenta un comentario/respuesta a uno mismo.
   async respuestasSinLeer(miembroId: number) {
-    const respuestas = await this.prisma.comentarioHistoria.findMany({
+    const comentarios = await this.prisma.comentarioHistoria.findMany({
       where: {
         leida: false,
         autorId: { not: miembroId },
-        respuestaA: { autorId: miembroId },
         historia: { createdAt: { gte: this.limiteVigencia() } },
+        OR: [
+          { respuestaA: { autorId: miembroId } },
+          { respuestaAId: null, historia: { autorId: miembroId } },
+        ],
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -374,24 +379,32 @@ export class HistoriasService {
       },
     });
 
-    return respuestas.map((r) => ({
-      id: r.id,
-      historiaId: r.historiaId,
-      autorNombre: r.autor.nombre,
-      autorFotoUrl: r.autor.fotoUrl,
-      texto: r.texto,
-      createdAt: r.createdAt,
+    return comentarios.map((c) => ({
+      id: c.id,
+      historiaId: c.historiaId,
+      autorNombre: c.autor.nombre,
+      autorFotoUrl: c.autor.fotoUrl,
+      texto: c.texto,
+      createdAt: c.createdAt,
+      esRespuesta: c.respuestaAId !== null,
     }));
   }
 
-  // Solo la persona a la que le respondieron puede apagar su propia
-  // notificación (evita que cualquiera marque leídas las de otro).
+  // Solo quien recibe la notificación puede apagarla (evita que cualquiera
+  // marque leídas las de otro): quien le respondieron, o el autor de la
+  // historia si es un comentario raíz.
   async marcarRespuestaLeida(comentarioId: number, miembroId: number) {
     const comentario = await this.prisma.comentarioHistoria.findUnique({
       where: { id: comentarioId },
-      include: { respuestaA: { select: { autorId: true } } },
+      include: {
+        respuestaA: { select: { autorId: true } },
+        historia: { select: { autorId: true } },
+      },
     });
-    if (!comentario || comentario.respuestaA?.autorId !== miembroId) {
+    const autorizado =
+      comentario?.respuestaA?.autorId === miembroId ||
+      (comentario?.respuestaAId === null && comentario?.historia.autorId === miembroId);
+    if (!comentario || !autorizado) {
       throw new ForbiddenException('No puedes marcar esta notificación');
     }
     await this.prisma.comentarioHistoria.update({
