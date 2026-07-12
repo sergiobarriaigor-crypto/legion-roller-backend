@@ -41,6 +41,14 @@ export class HistoriasController {
     return this.historiasService.respuestasSinLeer(req.user.id);
   }
 
+  // Para la campana del header: reacciones sin leer en mis historias,
+  // agrupadas por historia (evita una fila por cada persona que reaccionó).
+  @UseGuards(JwtAuthGuard)
+  @Get('notificaciones/reacciones')
+  reaccionesSinLeer(@Req() req: RequestConUsuario) {
+    return this.historiasService.reaccionesSinLeerAgrupadas(req.user.id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('notificaciones/respuestas/:comentarioId/leida')
   marcarRespuestaLeida(

@@ -390,6 +390,47 @@ export class HistoriasService {
     }));
   }
 
+  // Para la campana: reacciones (corazón) sin leer en MIS historias,
+  // AGRUPADAS por historia — si 20 personas reaccionan a la misma historia
+  // no queremos 20 filas en la campana, sino una sola con los primeros dos
+  // nombres (con foto) y "y otras N personas". Se excluye reaccionar a la
+  // propia historia. No hace falta un endpoint aparte para "marcar leída":
+  // abrir la pestaña de reacciones del panel (mismo deep-link) ya las marca
+  // leídas de una — ver `reaccionesDe()`, que es el mismo mecanismo que usa
+  // el puntito liviano del avatar en la barra de Historias.
+  async reaccionesSinLeerAgrupadas(miembroId: number) {
+    const reacciones = await this.prisma.reaccionHistoria.findMany({
+      where: {
+        leida: false,
+        miembroId: { not: miembroId },
+        historia: { autorId: miembroId, createdAt: { gte: this.limiteVigencia() } },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { miembro: { select: { nombre: true, fotoUrl: true } } },
+    });
+
+    const porHistoria = new Map<number, typeof reacciones>();
+    for (const r of reacciones) {
+      const lista = porHistoria.get(r.historiaId) ?? [];
+      lista.push(r);
+      porHistoria.set(r.historiaId, lista);
+    }
+
+    return [...porHistoria.entries()]
+      .map(([historiaId, lista]) => ({
+        historiaId,
+        total: lista.length,
+        // Ya viene ordenado desc por createdAt, así que los primeros dos son
+        // los más recientes en reaccionar.
+        primeros: lista.slice(0, 2).map((r) => ({
+          nombre: r.miembro.nombre,
+          fotoUrl: r.miembro.fotoUrl,
+        })),
+        createdAt: lista[0].createdAt,
+      }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   // Solo quien recibe la notificación puede apagarla (evita que cualquiera
   // marque leídas las de otro): quien le respondieron, o el autor de la
   // historia si es un comentario raíz.
