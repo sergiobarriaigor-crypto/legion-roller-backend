@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatService } from './chat.service';
 import { MensajeDto } from './dto/mensaje.dto';
@@ -34,5 +42,12 @@ export class ChatController {
   @Get('miembros')
   miembros() {
     return this.chatService.miembros();
+  }
+
+  // Para la campana del header: publicaciones que me compartieron y todavía
+  // no vi (mensajes de chat con referenciaTipo='post' sin leer).
+  @Get('notificaciones/compartidos')
+  compartidosSinLeer(@Req() req: RequestConUsuario) {
+    return this.chatService.compartidosSinLeer(req.user.id);
   }
 }

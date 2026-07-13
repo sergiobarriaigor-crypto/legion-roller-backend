@@ -42,6 +42,7 @@ model Miembro {
   posts                    Post[]
   reaccionesPost           ReaccionPost[]
   comentariosPost          ComentarioPost[]
+  reaccionesComentarioPost ReaccionComentarioPost[]
   emprendedor              Emprendedor?
   reaccionesEmprendedor    ReaccionEmprendedor[]
   resenasEmprendedor       ResenaEmprendedor[]
@@ -159,19 +160,47 @@ model ReaccionPost {
   post      Post     @relation(fields: [postId], references: [id])
   miembroId Int
   miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  // Para la notificación de la campana: "me gusta" agrupados sin ver todavía
+  // (mismo patrón que ReaccionHistoria.leida).
+  leida     Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([postId, miembroId])
 }
 
+// Visible para cualquiera (no es un inbox privado del autor), con hilo de un
+// solo nivel vía `respuestaAId` — mismo patrón que ComentarioHistoria.
 model ComentarioPost {
-  id        Int      @id @default(autoincrement())
-  postId    Int
-  post      Post     @relation(fields: [postId], references: [id])
-  autorId   Int
-  autor     Miembro  @relation(fields: [autorId], references: [id])
-  texto     String
-  createdAt DateTime @default(now())
+  id           Int              @id @default(autoincrement())
+  postId       Int
+  post         Post             @relation(fields: [postId], references: [id])
+  autorId      Int
+  autor        Miembro          @relation(fields: [autorId], references: [id])
+  texto        String
+  respuestaAId Int?
+  respuestaA   ComentarioPost?  @relation("RespuestasComentarioPost", fields: [respuestaAId], references: [id])
+  respuestas   ComentarioPost[] @relation("RespuestasComentarioPost")
+  // Para la notificación de la campana: en una respuesta, aplica al autor del
+  // comentario respondido; en un comentario raíz, al autor del post.
+  leida        Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+
+  reacciones ReaccionComentarioPost[]
+
+  @@index([postId])
+}
+
+// Corazón sobre un comentario puntual (no sobre el post) — interacción visual
+// simple, sin generar notificación de campana (decisión explícita).
+model ReaccionComentarioPost {
+  id           Int            @id @default(autoincrement())
+  comentarioId Int
+  comentario   ComentarioPost @relation(fields: [comentarioId], references: [id])
+  miembroId    Int
+  miembro      Miembro        @relation(fields: [miembroId], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@unique([comentarioId, miembroId])
 }
 
 // Fase 6: directorio de emprendedores "Impulsa" (sección 8 del PDF).

@@ -45,7 +45,10 @@ export class ChatService {
     });
 
     const individuales: Array<
-      Awaited<ReturnType<ChatService['resumenSala']>> & { otroMiembroId: number; otroNombre: string }
+      Awaited<ReturnType<ChatService['resumenSala']>> & {
+        otroMiembroId: number;
+        otroNombre: string;
+      }
     > = [];
     for (const { sala } of salasIndividuales) {
       const par = this.parseSalaIndividual(sala);
@@ -56,7 +59,11 @@ export class ChatService {
         select: { nombre: true },
       });
       const resumen = await this.resumenSala(sala, miembroId, limite);
-      individuales.push({ ...resumen, otroMiembroId: otroId, otroNombre: otro?.nombre ?? '?' });
+      individuales.push({
+        ...resumen,
+        otroMiembroId: otroId,
+        otroNombre: otro?.nombre ?? '?',
+      });
     }
 
     return { grupal, individuales };
@@ -155,7 +162,52 @@ export class ChatService {
   async miembros() {
     return this.prisma.miembro.findMany({
       orderBy: { nombre: 'asc' },
-      select: { id: true, nombre: true },
+      select: { id: true, nombre: true, fotoUrl: true },
     });
+  }
+
+  // Mismo criterio que `conversaciones()`: no hay forma de indexar las salas
+  // DM por participante, así que se traen todos los mensajes de tipo "post"
+  // no míos y se filtra en memoria cuáles salas me incluyen.
+  async compartidosSinLeer(miembroId: number) {
+    const limite = this.limiteVigencia();
+
+    const mensajes = await this.prisma.mensajeChat.findMany({
+      where: {
+        referenciaTipo: 'post',
+        autorId: { not: miembroId },
+        sala: { startsWith: 'dm-' },
+        createdAt: { gte: limite },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { autor: { select: { nombre: true, fotoUrl: true } } },
+    });
+
+    const propias = mensajes.filter((m) => {
+      const par = this.parseSalaIndividual(m.sala);
+      return par !== null && par.includes(miembroId);
+    });
+    if (propias.length === 0) return [];
+
+    const salas = [...new Set(propias.map((m) => m.sala))];
+    const lecturas = await this.prisma.lecturaChat.findMany({
+      where: { miembroId, sala: { in: salas } },
+    });
+    const leidoHastaPorSala = new Map(
+      lecturas.map((l) => [l.sala, l.leidoHasta]),
+    );
+
+    return propias
+      .filter(
+        (m) => m.createdAt > (leidoHastaPorSala.get(m.sala) ?? new Date(0)),
+      )
+      .map((m) => ({
+        mensajeId: m.id,
+        sala: m.sala,
+        postId: m.referenciaId as number,
+        autorNombre: m.autor.nombre,
+        autorFotoUrl: m.autor.fotoUrl,
+        createdAt: m.createdAt,
+      }));
   }
 }
