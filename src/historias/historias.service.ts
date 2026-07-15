@@ -262,7 +262,7 @@ export class HistoriasService {
       await this.prisma.reaccionHistoria.create({
         data: { historiaId, miembroId },
       });
-      this.gateway.emitirReaccion(historiaId, miembroId, nombre);
+      await this.gateway.emitirReaccion(historiaId, miembroId, nombre);
     }
 
     const total = await this.prisma.reaccionHistoria.count({

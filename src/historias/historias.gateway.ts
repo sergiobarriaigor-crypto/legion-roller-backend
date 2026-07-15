@@ -105,12 +105,14 @@ export class HistoriasGateway implements OnGatewayConnection {
         texto,
         respuestaAId,
       },
+      include: { autor: { select: { fotoUrl: true } } },
     });
 
     this.server.to(nombreSala(data.historiaId)).emit('historia:mensaje', {
       id: comentario.id,
       miembroId,
       nombre: client.data.nombre,
+      fotoUrl: comentario.autor.fotoUrl,
       texto,
       respuestaAId,
       createdAt: comentario.createdAt.toISOString(),
@@ -119,11 +121,17 @@ export class HistoriasGateway implements OnGatewayConnection {
 
   // Llamado desde HistoriasService al reaccionar (la reacción SÍ se guarda,
   // vía el endpoint REST de siempre) — esto solo agrega la capa en vivo para
-  // quien esté viendo la historia en ese momento.
-  emitirReaccion(historiaId: number, miembroId: number, nombre: string) {
+  // quien esté viendo la historia en ese momento. La ruta REST no tiene a mano
+  // el fotoUrl (el JWT solo trae id/nombre), así que se busca acá.
+  async emitirReaccion(historiaId: number, miembroId: number, nombre: string) {
+    const miembro = await this.prisma.miembro.findUnique({
+      where: { id: miembroId },
+      select: { fotoUrl: true },
+    });
     this.server.to(nombreSala(historiaId)).emit('historia:reaccion', {
       miembroId,
       nombre,
+      fotoUrl: miembro?.fotoUrl ?? null,
       createdAt: new Date().toISOString(),
     });
   }
