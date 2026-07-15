@@ -123,6 +123,21 @@ export class HistoriasController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Delete(':id/ecos/:ecoId')
+  eliminarEco(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('ecoId', ParseIntPipe) ecoId: number,
+  ) {
+    return this.historiasService.eliminarEco(
+      id,
+      ecoId,
+      req.user.id,
+      req.user.rol,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/mencion')
   responderMencion(
     @Req() req: RequestConUsuario,

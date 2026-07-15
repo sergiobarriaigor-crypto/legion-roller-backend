@@ -119,6 +119,40 @@ export class HistoriasGateway implements OnGatewayConnection {
     });
   }
 
+  // A diferencia de "historia:mensaje" (burbuja efímera de 3s), un Eco se
+  // guarda como EcoHistoria — un concepto aparte de ComentarioHistoria, sin
+  // hilo ni reacciones propias — y queda FIJO sobre la imagen para cualquiera
+  // que abra la historia más tarde (ver `listar()` en historias.service.ts).
+  // Igual se retransmite en vivo para que quien esté viendo la historia en
+  // ese momento no tenga que esperar un refetch para verlo aparecer.
+  @SubscribeMessage('historia:eco')
+  async eco(
+    @ConnectedSocket() client: SocketAutenticado,
+    @MessageBody() data: { historiaId: number; texto: string },
+  ) {
+    const texto = data?.texto?.trim().slice(0, 200);
+    const miembroId = client.data.miembroId;
+    if (!miembroId || !texto) return;
+
+    const eco = await this.prisma.ecoHistoria.create({
+      data: {
+        historiaId: data.historiaId,
+        autorId: miembroId,
+        texto,
+      },
+      include: { autor: { select: { fotoUrl: true } } },
+    });
+
+    this.server.to(nombreSala(data.historiaId)).emit('historia:eco', {
+      id: eco.id,
+      miembroId,
+      nombre: client.data.nombre,
+      fotoUrl: eco.autor.fotoUrl,
+      texto,
+      createdAt: eco.createdAt.toISOString(),
+    });
+  }
+
   // Llamado desde HistoriasService al reaccionar (la reacción SÍ se guarda,
   // vía el endpoint REST de siempre) — esto solo agrega la capa en vivo para
   // quien esté viendo la historia en ese momento. La ruta REST no tiene a mano

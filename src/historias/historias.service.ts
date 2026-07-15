@@ -89,6 +89,14 @@ export class HistoriasService {
         },
         reacciones: { select: { miembroId: true, leida: true } },
         _count: { select: { comentarios: true } },
+        // Los Ecos son un concepto aparte de los comentarios (ver EcoHistoria
+        // en el schema): quedan fijos sobre la imagen para cualquiera que
+        // abra la historia, no solo para quien la vio en vivo — por eso se
+        // traen completos acá, no solo un conteo.
+        ecos: {
+          orderBy: { createdAt: 'asc' },
+          include: { autor: { select: { nombre: true, fotoUrl: true } } },
+        },
       },
     });
 
@@ -200,6 +208,14 @@ export class HistoriasService {
               (r) => r.miembroId === miembroIdActual,
             ),
             comentariosCount: h._count.comentarios,
+            ecos: h.ecos.map((e) => ({
+              id: e.id,
+              miembroId: e.autorId,
+              nombre: e.autor.nombre,
+              fotoUrl: e.autor.fotoUrl,
+              texto: e.texto,
+              createdAt: e.createdAt,
+            })),
             createdAt: h.createdAt,
           };
         }),
@@ -239,6 +255,7 @@ export class HistoriasService {
     await this.prisma.comentarioHistoria.deleteMany({
       where: { historiaId: id },
     });
+    await this.prisma.ecoHistoria.deleteMany({ where: { historiaId: id } });
     await this.prisma.historia.delete({ where: { id } });
     return { mensaje: 'Historia eliminada' };
   }
@@ -355,6 +372,33 @@ export class HistoriasService {
       where: { id: comentarioId },
     });
     return { mensaje: 'Comentario eliminado' };
+  }
+
+  // Mismo criterio de permiso que un comentario (autor del eco, autor de la
+  // historia, o admin) — un Eco no tiene hilo de respuestas que arrastrar.
+  async eliminarEco(
+    historiaId: number,
+    ecoId: number,
+    miembroId: number,
+    rol: string,
+  ) {
+    const historia = await this.obtenerOFallar(historiaId);
+    const eco = await this.prisma.ecoHistoria.findUnique({
+      where: { id: ecoId },
+    });
+    if (!eco || eco.historiaId !== historiaId) {
+      throw new NotFoundException('Eco no encontrado');
+    }
+    const puedeEliminar =
+      eco.autorId === miembroId ||
+      historia.autorId === miembroId ||
+      rol === 'admin';
+    if (!puedeEliminar) {
+      throw new ForbiddenException('No puedes eliminar este eco');
+    }
+
+    await this.prisma.ecoHistoria.delete({ where: { id: ecoId } });
+    return { mensaje: 'Eco eliminado' };
   }
 
   // Para la campana del header: comentarios que me incumben y todavía no vi.

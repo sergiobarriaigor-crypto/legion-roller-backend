@@ -56,6 +56,7 @@ model Miembro {
   reaccionesHistoria       ReaccionHistoria[]
   mencionesHistoria        MencionHistoria[]
   comentariosHistoria      ComentarioHistoria[]
+  ecosHistoria             EcoHistoria[]
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
@@ -329,6 +330,7 @@ model Historia {
   reacciones  ReaccionHistoria[]
   menciones   MencionHistoria[]
   comentarios ComentarioHistoria[]
+  ecos        EcoHistoria[]
 
   @@index([autorId])
 }
@@ -394,6 +396,24 @@ model ComentarioHistoria {
   // Empieza en false.
   leida        Boolean              @default(false)
   createdAt    DateTime             @default(now())
+
+  @@index([historiaId])
+}
+
+// "Eco": a diferencia de un ComentarioHistoria (que solo aparece flotando un
+// instante para quien esté viendo la historia justo en ese momento, y después
+// solo vive en el hilo de "comentarios"), un Eco queda FIJO y visible sobre la
+// imagen de la historia para cualquiera que la abra, en cualquier momento,
+// mientras la historia siga activa — es un concepto aparte, sin hilo de
+// respuestas ni reacciones propias, solo texto + autor + fecha.
+model EcoHistoria {
+  id         Int      @id @default(autoincrement())
+  historiaId Int
+  historia   Historia @relation(fields: [historiaId], references: [id])
+  autorId    Int
+  autor      Miembro  @relation(fields: [autorId], references: [id])
+  texto      String
+  createdAt  DateTime @default(now())
 
   @@index([historiaId])
 }
