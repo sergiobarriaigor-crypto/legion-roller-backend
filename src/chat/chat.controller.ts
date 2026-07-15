@@ -44,8 +44,9 @@ export class ChatController {
     return this.chatService.miembros();
   }
 
-  // Para la campana del header: publicaciones que me compartieron y todavía
-  // no vi (mensajes de chat con referenciaTipo='post' sin leer).
+  // Para la campana del header: publicaciones o fichas de emprendedor que me
+  // compartieron y todavía no vi (mensajes de chat con referenciaTipo='post'
+  // o 'emprendedor' sin leer).
   @Get('notificaciones/compartidos')
   compartidosSinLeer(@Req() req: RequestConUsuario) {
     return this.chatService.compartidosSinLeer(req.user.id);

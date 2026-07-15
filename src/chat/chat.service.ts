@@ -167,14 +167,14 @@ export class ChatService {
   }
 
   // Mismo criterio que `conversaciones()`: no hay forma de indexar las salas
-  // DM por participante, así que se traen todos los mensajes de tipo "post"
-  // no míos y se filtra en memoria cuáles salas me incluyen.
+  // DM por participante, así que se traen todos los mensajes de tipo "post" o
+  // "emprendedor" no míos y se filtra en memoria cuáles salas me incluyen.
   async compartidosSinLeer(miembroId: number) {
     const limite = this.limiteVigencia();
 
     const mensajes = await this.prisma.mensajeChat.findMany({
       where: {
-        referenciaTipo: 'post',
+        referenciaTipo: { in: ['post', 'emprendedor'] },
         autorId: { not: miembroId },
         sala: { startsWith: 'dm-' },
         createdAt: { gte: limite },
@@ -204,7 +204,8 @@ export class ChatService {
       .map((m) => ({
         mensajeId: m.id,
         sala: m.sala,
-        postId: m.referenciaId as number,
+        tipo: m.referenciaTipo as 'post' | 'emprendedor',
+        referenciaId: m.referenciaId as number,
         autorNombre: m.autor.nombre,
         autorFotoUrl: m.autor.fotoUrl,
         createdAt: m.createdAt,

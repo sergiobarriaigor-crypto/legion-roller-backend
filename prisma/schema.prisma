@@ -46,6 +46,7 @@ model Miembro {
   emprendedor              Emprendedor?
   reaccionesEmprendedor    ReaccionEmprendedor[]
   resenasEmprendedor       ResenaEmprendedor[]
+  reaccionesResenaEmprendedor ReaccionResenaEmprendedor[]
   reconocimientosEnviados  ReconocimientoRecibido[] @relation("reconocimientosEnviados")
   reconocimientosRecibidos ReconocimientoRecibido[] @relation("reconocimientosRecibidos")
   mensajesChat             MensajeChat[]
@@ -238,14 +239,40 @@ model ReaccionEmprendedor {
   @@unique([emprendedorId, miembroId])
 }
 
+// Visible para cualquiera (no es un inbox privado del dueño), con hilo de un
+// solo nivel vía `respuestaAId` — mismo patrón que ComentarioPost.
 model ResenaEmprendedor {
-  id            Int         @id @default(autoincrement())
+  id            Int                 @id @default(autoincrement())
   emprendedorId Int
-  emprendedor   Emprendedor @relation(fields: [emprendedorId], references: [id])
+  emprendedor   Emprendedor         @relation(fields: [emprendedorId], references: [id])
   autorId       Int
-  autor         Miembro     @relation(fields: [autorId], references: [id])
+  autor         Miembro             @relation(fields: [autorId], references: [id])
   texto         String
-  createdAt     DateTime    @default(now())
+  respuestaAId  Int?
+  respuestaA    ResenaEmprendedor?  @relation("RespuestasResenaEmprendedor", fields: [respuestaAId], references: [id])
+  respuestas    ResenaEmprendedor[] @relation("RespuestasResenaEmprendedor")
+  // Para la notificación de la campana: en una respuesta, aplica al autor de
+  // la reseña respondida; en una reseña raíz, al dueño de la ficha.
+  leida         Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+
+  reacciones ReaccionResenaEmprendedor[]
+
+  @@index([emprendedorId])
+}
+
+// Corazón sobre una reseña puntual (no sobre la ficha) — interacción visual
+// simple, sin generar notificación de campana (mismo criterio que
+// ReaccionComentarioPost).
+model ReaccionResenaEmprendedor {
+  id        Int               @id @default(autoincrement())
+  resenaId  Int
+  resena    ResenaEmprendedor @relation(fields: [resenaId], references: [id])
+  miembroId Int
+  miembro   Miembro           @relation(fields: [miembroId], references: [id])
+  createdAt DateTime          @default(now())
+
+  @@unique([resenaId, miembroId])
 }
 
 model AnuncioEmprendedor {
