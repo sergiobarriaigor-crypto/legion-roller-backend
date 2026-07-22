@@ -1,10 +1,9 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '../../generated/prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-// Fase 2: SQLite local vía el adapter oficial de Prisma (obligatorio desde Prisma 7,
-// ya no basta con una URL). Al migrar a Postgres en Railway (Fase 12) esto se
-// reemplaza por @prisma/adapter-pg con la URL de esa base.
+// Fase 12: Postgres en producción (Railway) vía el adapter oficial de Prisma
+// (obligatorio desde Prisma 7, ya no basta con una URL en el datasource).
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -12,8 +11,8 @@ export class PrismaService
 {
   constructor() {
     super({
-      adapter: new PrismaBetterSqlite3({
-        url: process.env.DATABASE_URL ?? 'file:./dev.db',
+      adapter: new PrismaPg({
+        connectionString: process.env.DATABASE_URL,
       }),
     });
   }
