@@ -1,44 +1,47 @@
-// Script de datos de prueba (Fase 2). Se ejecuta con: node scripts/seed.js
-// Usa better-sqlite3 directo (no Prisma Client) para no depender de compilación TS.
+// Script de datos de prueba. Se ejecuta con: node scripts/seed.js
+// Usa Prisma Client (mismo adapter que la app) para funcionar contra
+// cualquier base de datos configurada en DATABASE_URL (SQLite local o
+// Postgres en producción).
 require('dotenv/config');
-const path = require('node:path');
 const bcrypt = require('bcryptjs');
-const Database = require('better-sqlite3');
+const { PrismaClient } = require('../generated/prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
 
-const dbPath = (process.env.DATABASE_URL || 'file:./dev.db').replace('file:', '');
-const db = new Database(path.resolve(__dirname, '..', dbPath));
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const cuentas = [
   { nombre: 'Admin', telefono: '900000000', clave: 'admin1234', rol: 'admin', ciudad: 'Puerto Montt' },
   { nombre: 'Camila Usuaria', telefono: '911111111', clave: 'usuario1234', rol: 'usuario', ciudad: 'Puerto Varas' },
 ];
 
-// Mismo marcador de posición usado en la migración 20260718200732 para las
-// cuentas ya existentes (el login pasa de teléfono a correo).
-for (const cuenta of cuentas) {
-  cuenta.correo = `${cuenta.telefono}@legionroller.local`;
-}
-
-const insertar = db.prepare(
-  `INSERT INTO Miembro (nombre, telefono, correo, passwordHash, ciudad, rol) VALUES (@nombre, @telefono, @correo, @passwordHash, @ciudad, @rol)`,
-);
-const buscar = db.prepare(`SELECT id FROM Miembro WHERE telefono = ?`);
-
-for (const cuenta of cuentas) {
-  const existe = buscar.get(cuenta.telefono);
-  if (existe) {
-    console.log(`Ya existe: ${cuenta.nombre} (${cuenta.telefono})`);
-    continue;
+async function main() {
+  for (const cuenta of cuentas) {
+    const correo = `${cuenta.telefono}@legionroller.local`;
+    const existe = await prisma.miembro.findUnique({ where: { correo } });
+    if (existe) {
+      console.log(`Ya existe: ${cuenta.nombre} (${correo})`);
+      continue;
+    }
+    const passwordHash = await bcrypt.hash(cuenta.clave, 10);
+    await prisma.miembro.create({
+      data: {
+        nombre: cuenta.nombre,
+        telefono: cuenta.telefono,
+        correo,
+        passwordHash,
+        ciudad: cuenta.ciudad,
+        rol: cuenta.rol,
+      },
+    });
+    console.log(`Creado: ${cuenta.nombre} (${correo} / ${cuenta.clave}) — rol ${cuenta.rol}`);
   }
-  const passwordHash = bcrypt.hashSync(cuenta.clave, 10);
-  insertar.run({
-    nombre: cuenta.nombre,
-    telefono: cuenta.telefono,
-    passwordHash,
-    ciudad: cuenta.ciudad,
-    rol: cuenta.rol,
-  });
-  console.log(`Creado: ${cuenta.nombre} (${cuenta.telefono} / ${cuenta.clave}) — rol ${cuenta.rol}`);
 }
 
-db.close();
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => prisma.$disconnect());
