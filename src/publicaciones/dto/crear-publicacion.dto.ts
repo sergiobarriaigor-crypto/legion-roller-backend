@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
@@ -18,6 +19,20 @@ export const TIPOS_PUBLICACION = [
   'estado_rutas',
   'anuncio',
   'consejo',
+] as const;
+
+export const TIPOS_FINALIZACION = [
+  'punto_llegada',
+  'distancia_minima',
+  'ida_vuelta',
+  'cierre_manual',
+] as const;
+
+export const TIPOS_ASISTENCIA_EVENTO = [
+  'gps_puntual',
+  'codigo',
+  'cierre_manual',
+  'autoconfirmacion',
 ] as const;
 
 export class CrearPublicacionDto {
@@ -41,6 +56,38 @@ export class CrearPublicacionDto {
   @IsOptional()
   @IsString()
   puntoEncuentro?: string;
+
+  @IsOptional()
+  @IsNumber()
+  puntoLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  puntoLon?: number;
+
+  @IsOptional()
+  @IsIn(TIPOS_FINALIZACION)
+  tipoFinalizacion?: string;
+
+  @IsOptional()
+  @IsNumber()
+  puntoFinLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  puntoFinLon?: number;
+
+  @IsOptional()
+  @IsNumber()
+  distanciaMinimaKm?: number;
+
+  @IsOptional()
+  @IsIn(TIPOS_ASISTENCIA_EVENTO)
+  tipoAsistenciaEvento?: string;
+
+  @IsOptional()
+  @IsString()
+  codigoAsistencia?: string;
 
   @IsOptional()
   @IsBoolean()

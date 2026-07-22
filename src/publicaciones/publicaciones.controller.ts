@@ -17,6 +17,7 @@ import { PublicacionesService } from './publicaciones.service';
 import { CrearPublicacionDto } from './dto/crear-publicacion.dto';
 import { ActualizarPublicacionDto } from './dto/actualizar-publicacion.dto';
 import { RsvpDto } from './dto/rsvp.dto';
+import { ConfirmarAsistenciaEventoDto } from './dto/confirmar-asistencia-evento.dto';
 
 interface RequestConUsuario {
   user: { id: number };
@@ -35,6 +36,12 @@ export class PublicacionesController {
   @Get('mis-rsvps')
   misRsvps(@Req() req: RequestConUsuario) {
     return this.publicacionesService.misRsvps(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('mis-asistencias-evento')
+  misAsistenciasEvento(@Req() req: RequestConUsuario) {
+    return this.publicacionesService.misAsistenciasEvento(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -76,5 +83,36 @@ export class PublicacionesController {
     @Body() dto: RsvpDto,
   ) {
     return this.publicacionesService.marcarRsvp(id, req.user.id, dto.estado);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/confirmar-asistencia')
+  confirmarAsistenciaEvento(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmarAsistenciaEventoDto,
+  ) {
+    return this.publicacionesService.confirmarAsistenciaEvento(
+      req.user.id,
+      id,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get(':id/asistencia-evento')
+  listarParaRollCall(@Param('id', ParseIntPipe) id: number) {
+    return this.publicacionesService.listarParaRollCall(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post(':id/asistencia-evento/:miembroId')
+  alternarAsistenciaManual(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('miembroId', ParseIntPipe) miembroId: number,
+  ) {
+    return this.publicacionesService.alternarAsistenciaManual(id, miembroId);
   }
 }

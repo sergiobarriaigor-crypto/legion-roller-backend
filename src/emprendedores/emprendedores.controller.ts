@@ -64,6 +64,12 @@ export class EmprendedoresController {
   // las rutas con ":id" — de otro modo, ":id/aprobar"-como no colisiona, pero
   // se mantiene el mismo criterio de posts.controller.ts por seguridad.
   @UseGuards(JwtAuthGuard)
+  @Get('mis-reacciones')
+  misReacciones(@Req() req: RequestConUsuario) {
+    return this.emprendedoresService.misReacciones(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('notificaciones/respuestas')
   respuestasSinLeer(@Req() req: RequestConUsuario) {
     return this.emprendedoresService.respuestasSinLeer(req.user.id);

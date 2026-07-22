@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -8,23 +9,54 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegistroDto } from './dto/registro.dto';
+import { VerificacionCorreoService } from './verificacion-correo.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private verificacionCorreo: VerificacionCorreoService,
   ) {}
+
+  private async correoYaRegistrado(correo: string): Promise<boolean> {
+    const [miembro, solicitud] = await Promise.all([
+      this.prisma.miembro.findUnique({ where: { correo } }),
+      this.prisma.solicitudRegistro.findUnique({ where: { correo } }),
+    ]);
+    return !!miembro || !!solicitud;
+  }
+
+  async enviarCodigoVerificacion(correo: string) {
+    if (await this.correoYaRegistrado(correo)) {
+      throw new ConflictException(
+        'Ese correo ya tiene una cuenta o solicitud.',
+      );
+    }
+    const codigoDev = this.verificacionCorreo.generarCodigo(correo);
+    return {
+      mensaje: 'Código enviado (modo simulado, ver codigoDev).',
+      codigoDev,
+    };
+  }
+
+  confirmarCodigoVerificacion(correo: string, codigo: string) {
+    const resultado = this.verificacionCorreo.confirmarCodigo(correo, codigo);
+    if (!resultado.ok) {
+      throw new BadRequestException(resultado.error);
+    }
+    return { mensaje: 'Correo verificado.' };
+  }
 
   private firmarToken(miembro: {
     id: number;
-    telefono: string;
+    correo: string;
     nombre: string;
     rol: string;
   }) {
     const payload = {
       sub: miembro.id,
-      telefono: miembro.telefono,
+      correo: miembro.correo,
       nombre: miembro.nombre,
       rol: miembro.rol,
     };
@@ -38,34 +70,30 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const miembro = await this.prisma.miembro.findUnique({
-      where: { telefono: dto.telefono },
+      where: { correo: dto.correo },
     });
 
     if (!miembro) {
-      throw new UnauthorizedException('Teléfono o contraseña incorrectos');
+      throw new UnauthorizedException('Correo o contraseña incorrectos');
     }
 
     const claveValida = await bcrypt.compare(dto.clave, miembro.passwordHash);
     if (!claveValida) {
-      throw new UnauthorizedException('Teléfono o contraseña incorrectos');
+      throw new UnauthorizedException('Correo o contraseña incorrectos');
     }
 
     return this.firmarToken(miembro);
   }
 
   async registrar(dto: RegistroDto) {
-    const existente = await this.prisma.miembro.findUnique({
-      where: { telefono: dto.telefono },
-    });
-    if (existente) {
-      throw new ConflictException('Ese teléfono ya tiene una cuenta');
+    if (await this.correoYaRegistrado(dto.correo)) {
+      throw new ConflictException('Ese correo ya tiene una cuenta o solicitud');
     }
 
-    const solicitudExistente = await this.prisma.solicitudRegistro.findUnique({
-      where: { telefono: dto.telefono },
-    });
-    if (solicitudExistente) {
-      throw new ConflictException('Ya existe una solicitud con ese teléfono');
+    if (!this.verificacionCorreo.estaVerificado(dto.correo)) {
+      throw new BadRequestException(
+        'Primero verifica tu correo con el código enviado.',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.clave, 10);
@@ -73,6 +101,9 @@ export class AuthService {
     const solicitud = await this.prisma.solicitudRegistro.create({
       data: {
         nombre: dto.nombre,
+        correo: dto.correo,
+        fechaNacimiento: new Date(dto.fechaNacimiento),
+        fotoUrl: dto.fotoUrl,
         telefono: dto.telefono,
         ciudad: dto.ciudad,
         passwordHash,
@@ -88,25 +119,41 @@ export class AuthService {
   async listarSolicitudesPendientes() {
     return this.prisma.solicitudRegistro.findMany({
       where: { estado: 'pendiente' },
-      select: { id: true, nombre: true, telefono: true, ciudad: true, createdAt: true },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        fechaNacimiento: true,
+        fotoUrl: true,
+        telefono: true,
+        ciudad: true,
+        createdAt: true,
+      },
     });
   }
 
-  async aprobarSolicitud(id: number) {
+  async aprobarSolicitud(id: number, categoria: 'legion' | 'comunidad') {
     const solicitud = await this.prisma.solicitudRegistro.findUnique({
       where: { id },
     });
     if (!solicitud || solicitud.estado !== 'pendiente') {
       throw new ConflictException('Solicitud no encontrada o ya resuelta');
     }
+    if (!solicitud.correo) {
+      throw new ConflictException('La solicitud no tiene un correo válido');
+    }
 
     const miembro = await this.prisma.miembro.create({
       data: {
         nombre: solicitud.nombre,
+        correo: solicitud.correo,
+        fechaNacimiento: solicitud.fechaNacimiento,
+        fotoUrl: solicitud.fotoUrl,
         telefono: solicitud.telefono,
         passwordHash: solicitud.passwordHash,
         ciudad: solicitud.ciudad,
         rol: 'usuario',
+        categoria,
       },
     });
 
@@ -116,6 +163,16 @@ export class AuthService {
     });
 
     return { id: miembro.id, mensaje: 'Solicitud aprobada' };
+  }
+
+  // Categoría interna (Legión/Comunidad) editable después de aprobar, solo
+  // por el admin — ver comentario en schema.prisma sobre el uso futuro.
+  async cambiarCategoria(id: number, categoria: 'legion' | 'comunidad') {
+    await this.prisma.miembro.update({
+      where: { id },
+      data: { categoria },
+    });
+    return { mensaje: 'Categoría actualizada' };
   }
 
   async rechazarSolicitud(id: number) {
@@ -132,9 +189,13 @@ export class AuthService {
       select: {
         id: true,
         nombre: true,
+        correo: true,
+        fechaNacimiento: true,
+        fotoUrl: true,
         telefono: true,
         ciudad: true,
         rol: true,
+        categoria: true,
         createdAt: true,
       },
     });

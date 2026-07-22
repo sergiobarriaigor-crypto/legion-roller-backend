@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -25,10 +26,7 @@ export class MapaController {
   constructor(private mapaService: MapaService) {}
 
   @Post('patinando')
-  activarPatinando(
-    @Req() req: RequestConUsuario,
-    @Body() dto: UbicacionDto,
-  ) {
+  activarPatinando(@Req() req: RequestConUsuario, @Body() dto: UbicacionDto) {
     return this.mapaService.activarPatinando(req.user.id, dto);
   }
 
@@ -42,11 +40,21 @@ export class MapaController {
     return this.mapaService.patinandoAhora();
   }
 
-  @Post('recorridos')
-  guardarRecorrido(
+  @Get('rodadas-cercanas')
+  rodadasCercanas(
     @Req() req: RequestConUsuario,
-    @Body() dto: RecorridoDto,
+    @Query('lat') lat: string,
+    @Query('lon') lon: string,
   ) {
+    return this.mapaService.rodadasCercanas(
+      req.user.id,
+      Number(lat),
+      Number(lon),
+    );
+  }
+
+  @Post('recorridos')
+  guardarRecorrido(@Req() req: RequestConUsuario, @Body() dto: RecorridoDto) {
     return this.mapaService.guardarRecorrido(req.user.id, dto);
   }
 

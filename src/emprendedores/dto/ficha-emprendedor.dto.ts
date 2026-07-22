@@ -1,4 +1,10 @@
-import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsOptional,
+  IsString,
+  IsUrl,
+} from 'class-validator';
 
 export class FichaEmprendedorDto {
   @IsString()
@@ -10,16 +16,16 @@ export class FichaEmprendedorDto {
   @IsString()
   descripcion: string;
 
+  @IsOptional()
   @IsString()
-  contacto: string;
+  contacto?: string;
 
   @IsOptional()
   @IsString()
   ubicacion?: string;
 
-  @IsOptional()
   @IsString()
-  instagram?: string;
+  instagram: string;
 
   @IsOptional()
   @IsString()
@@ -31,6 +37,7 @@ export class FichaEmprendedorDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(4)
   @IsUrl({ require_tld: false }, { each: true })
   fotos?: string[];
 }

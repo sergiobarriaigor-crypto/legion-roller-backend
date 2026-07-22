@@ -17,17 +17,21 @@ datasource db {
 model Miembro {
   id           Int      @id @default(autoincrement())
   nombre       String
-  telefono     String   @unique
+  // Ajuste post-registro-v2: el login pasa a ser por correo, no por teléfono
+  // — telefono queda opcional (dato de contacto, ya no identificador de cuenta).
+  telefono     String?  @unique
+  correo       String   @unique
+  fechaNacimiento DateTime?
   passwordHash String
   ciudad       String?
   rol          String   @default("usuario") // "usuario" | "admin"
   createdAt    DateTime @default(now())
 
-  // Fase 7: técnicas dominadas (autoevaluación, sección 9 del PDF)
-  tecnicaT        Boolean @default(false)
-  tecnicaSoul     Boolean @default(false)
-  tecnicaMaggi    Boolean @default(false)
-  tecnicaParallel Boolean @default(false)
+  // Categorización interna que solo el admin ve/maneja (se asigna al aprobar
+  // la solicitud, editable después desde "Todos los integrantes"): "legion" |
+  // "comunidad" — pensada para más adelante dar accesos limitados dentro de
+  // la app según la categoría (todavía no implementado, solo el dato).
+  categoria String?
 
   // Fase 7: estado tipo "story" visible en el mapa (vigencia HORAS_ESTADO = 8h)
   estadoTexto String?
@@ -36,8 +40,25 @@ model Miembro {
   // Ajuste post-Fase 11: foto de perfil circular, mostrada en el mapa mientras comparte ubicación
   fotoUrl String?
 
+  // Ajuste post-Fase 12: mejor distancia alcanzada en una sola ruta/sesión
+  // (no acumulada), para los hitos de "Distancias Alcanzadas" — se guarda
+  // aparte de Recorrido para que un logro ya obtenido no se pierda si el
+  // usuario borra esa ruta después (hay un tope de 10 rutas guardadas).
+  mejorDistanciaRuta Float @default(0)
+
+  // Ajuste post-Fase 12: técnicas dominadas por categorías (Frenos/Saltos/Fakie),
+  // reemplaza las columnas booleanas fijas de la Fase 7 — no escalaban a una
+  // lista más larga y extensible (ver CATALOGO_TECNICAS en el frontend).
+  tecnicas MiembroTecnica[]
+
+  // Ajuste post-Fase 12: galería de fotos del perfil (hasta 6, MAX_FOTOS_GALERIA),
+  // cada una con su propio contador de "me gusta" — mismo patrón que Post/ReaccionPost.
+  fotosGaleria           FotoGaleria[]
+  reaccionesFotoGaleria  ReaccionFotoGaleria[]
+
   ubicacionActiva          UbicacionActiva?
   recorridos               Recorrido[]
+  asistenciasRodada        AsistenciaRodada[]
   rsvps                    RsvpRespuesta[]
   posts                    Post[]
   reaccionesPost           ReaccionPost[]
@@ -58,13 +79,43 @@ model Miembro {
   mencionesHistoria        MencionHistoria[]
   comentariosHistoria      ComentarioHistoria[]
   ecosHistoria             EcoHistoria[]
+
+  // Ajuste post-Fase 12: notificaciones push reales (Web Push), una fila por
+  // dispositivo/navegador suscrito.
+  suscripcionesPush SuscripcionPush[]
+
+  // Ajuste: asistencias confirmadas a eventos (charlas/capacitaciones/actividades).
+  asistenciasEvento AsistenciaEvento[]
+
+  // Ajuste: rediseño de Chat — última vez que se desconectó su último socket
+  // (no se guarda un booleano "en línea": se deriva en caliente desde
+  // ChatPresenceService, igual que patinandoAhora() hace con actualizadoEn).
+  ultimaConexion DateTime?
+
+  reaccionesMensajeChat ReaccionMensajeChat[]
+  mensajesOcultos       MensajeChatOculto[]
+}
+
+// Ajuste post-Fase 12: suscripción de Web Push de un dispositivo/navegador
+// (ver notificaciones-push/). Un miembro puede tener varias (celular + laptop).
+model SuscripcionPush {
+  id        Int      @id @default(autoincrement())
+  miembroId Int
+  miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
 }
 
 // Solicitud de registro pendiente de aprobación de un Admin (sección 3 y 13 del PDF)
 model SolicitudRegistro {
   id           Int      @id @default(autoincrement())
   nombre       String
-  telefono     String   @unique
+  telefono     String?  @unique
+  correo       String?  @unique
+  fechaNacimiento DateTime?
+  fotoUrl      String?
   ciudad       String?
   passwordHash String
   estado       String   @default("pendiente") // "pendiente" | "aceptada" | "rechazada"
@@ -101,6 +152,27 @@ model Recorrido {
   puntos      String
   favorito    Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  asistencia AsistenciaRodada?
+}
+
+// Ajuste post-Fase 12: asistencia confirmada a una rodada (reglas de validación
+// en mapa.service.ts guardarRecorrido). Reemplaza el conteo ingenuo de RSVP
+// "yes" en perfil.service.ts — ahora "asistencias" cuenta solo estas filas,
+// creadas automáticamente cuando el recorrido cumple las 4 reglas (RSVP previo,
+// modo "Estoy en Ruta" activado, cercanía GPS al punto de inicio dentro de la
+// ventana horaria, y distancia mínima recorrida).
+model AsistenciaRodada {
+  id            Int         @id @default(autoincrement())
+  publicacionId Int
+  publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
+  miembroId     Int
+  miembro       Miembro     @relation(fields: [miembroId], references: [id])
+  recorridoId   Int         @unique
+  recorrido     Recorrido   @relation(fields: [recorridoId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([publicacionId, miembroId])
 }
 
 // Fase 4: feed de publicaciones oficiales de Comunidad (sección 6 del PDF).
@@ -113,13 +185,62 @@ model Publicacion {
   fecha          String? // "YYYY-MM-DD", solo rodadas/eventos
   hora           String? // "HH:MM"
   puntoEncuentro String?
+  // Ajuste post-Fase 12: coordenadas reales del punto de inicio de una rodada
+  // (fijadas por el Admin con un selector de mapa), necesarias para validar
+  // la cercanía GPS al conceder asistencia confirmada (ver AsistenciaRodada).
+  // puntoEncuentro sigue siendo el nombre visible; esto es solo para el cálculo.
+  puntoLat       Float?
+  puntoLon       Float?
+  // Ajuste post-Fase 12: cómo se valida que un usuario "completó" la rodada
+  // para conceder asistencia (ver AsistenciaRodada / mapa.service.ts). Sin
+  // definir (rodadas creadas antes de este ajuste) cae en el comportamiento
+  // histórico: distancia mínima fija (DISTANCIA_MINIMA_ASISTENCIA_KM).
+  // "punto_llegada" | "distancia_minima" | "ida_vuelta" | "cierre_manual"
+  tipoFinalizacion  String?
+  puntoFinLat       Float? // solo si tipoFinalizacion = "punto_llegada"
+  puntoFinLon       Float?
+  distanciaMinimaKm Float? // solo si tipoFinalizacion = "distancia_minima"
+  // solo si tipoFinalizacion = "cierre_manual": mientras sea false, cualquier
+  // recorrido que cumpla el resto de las reglas obtiene asistencia; una vez
+  // que el Admin la marca true (botón "Marcar rodada como finalizada"), deja
+  // de concederse, sin importar la ventana horaria automática.
+  cerrada           Boolean  @default(false)
   rsvp           Boolean  @default(false)
   duracionHoras  Int? // vencimiento; null = no vence
   activaEnMapa   Boolean  @default(false)
   fotos          String? // JSON array de URLs (Fase 10: subida real vía /uploads)
   createdAt      DateTime @default(now())
 
-  rsvps RsvpRespuesta[]
+  // Ajuste post-Fase 12: recordatorio push 30 minutos antes de fecha+hora
+  // (solo rodada/evento/anuncio, ver RecordatoriosScheduler). Evita reenviar
+  // el aviso en cada tick del cron una vez que ya se envió una vez.
+  recordatorioEnviado Boolean @default(false)
+
+  // Ajuste: cómo se valida la asistencia a un EVENTO (charla/capacitación/
+  // actividad, no ruta). Independiente de tipoFinalizacion (que es para
+  // rodadas). "gps_puntual" reutiliza puntoLat/puntoLon de arriba.
+  // "gps_puntual" | "codigo" | "cierre_manual" | "autoconfirmacion"
+  tipoAsistenciaEvento String?
+  codigoAsistencia     String? // solo si tipoAsistenciaEvento = "codigo"
+
+  rsvps            RsvpRespuesta[]
+  asistencias      AsistenciaRodada[]
+  asistenciasEvento AsistenciaEvento[]
+}
+
+// Ajuste: asistencia confirmada a un EVENTO (ver reglas en
+// publicaciones.service.ts confirmarAsistenciaEvento). Reemplaza el conteo
+// ingenuo de RSVP "yes" en perfil.service.ts para la estadística "eventos",
+// mismo criterio que AsistenciaRodada ya aplica a "asistencias".
+model AsistenciaEvento {
+  id            Int         @id @default(autoincrement())
+  publicacionId Int
+  publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
+  miembroId     Int
+  miembro       Miembro     @relation(fields: [miembroId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([publicacionId, miembroId])
 }
 
 // Una respuesta de RSVP por miembro y publicación ("yes" | "maybe" | "no")
@@ -214,7 +335,7 @@ model Emprendedor {
   nombreNegocio String
   rubro         String
   descripcion   String
-  contacto      String
+  contacto      String?
   ubicacion     String?
   instagram     String?
   facebook      String?
@@ -309,18 +430,81 @@ model MensajeChat {
   referenciaId   Int?
   createdAt      DateTime @default(now())
 
+  // Ajuste: rediseño de Chat — responder (hilo de un solo nivel, validado en
+  // código igual que ComentarioPost: no se puede responder a una respuesta).
+  respuestaAId Int?
+  respuestaA   MensajeChat?  @relation("RespuestasMensajeChat", fields: [respuestaAId], references: [id])
+  respuestas   MensajeChat[] @relation("RespuestasMensajeChat")
+
+  // Ajuste: reenviar — apunta al mensaje original solo para mostrar la
+  // etiqueta "Reenviado" (el texto/adjunto ya se copia a la fila nueva).
+  reenviadoDeId Int?
+  reenviadoDe   MensajeChat?  @relation("ReenviosMensajeChat", fields: [reenviadoDeId], references: [id])
+  reenvios      MensajeChat[] @relation("ReenviosMensajeChat")
+
+  // Ajuste: adjuntos. "ruta" guarda una foto (snapshot) de la Recorrido
+  // elegida en vez de una FK, para que borrar la ruta original desde "Mis
+  // rutas" no rompa un mensaje ya enviado.
+  adjuntoTipo            String? // "foto" | "ubicacion" | "ruta"
+  adjuntoUrl             String? // "foto"
+  adjuntoUbicacionNombre String? // "ubicacion" — etiqueta descriptiva (sector más cercano)
+  // Ajuste: ubicación exacta en Chat (a diferencia de Post/Historias, que solo
+  // comparten el nombre del sector) — el chat es una conversación privada, no
+  // un feed comunitario, así que acá sí tiene sentido compartir la posición
+  // real, como hace WhatsApp.
+  adjuntoUbicacionLat    Float?
+  adjuntoUbicacionLon    Float?
+  adjuntoRutaDistanciaKm Float?
+  adjuntoRutaDuracionSeg Int?
+  adjuntoRutaPuntos      String? // "ruta" — JSON [{lat,lon,timestamp}], decimado
+
+  reacciones    ReaccionMensajeChat[]
+  ocultamientos MensajeChatOculto[]
+
   @@index([sala])
 }
 
-// Marca hasta qué momento leyó cada miembro cada sala (para contar mensajes no leídos).
+// Marca hasta qué momento leyó (y, ahora, hasta qué momento recibió/entregó)
+// cada miembro cada sala (para contar mensajes no leídos y los checks de
+// enviado/entregado/leído, que solo tienen sentido en salas dm-* de 1 solo interlocutor).
 model LecturaChat {
-  id         Int      @id @default(autoincrement())
-  miembroId  Int
-  miembro    Miembro  @relation(fields: [miembroId], references: [id])
-  sala       String
-  leidoHasta DateTime
+  id             Int       @id @default(autoincrement())
+  miembroId      Int
+  miembro        Miembro   @relation(fields: [miembroId], references: [id])
+  sala           String
+  leidoHasta     DateTime
+  entregadoHasta DateTime?
 
   @@unique([miembroId, sala])
+}
+
+// Ajuste: reacción con emoji a un mensaje — una por persona por mensaje
+// (re-reaccionar reemplaza, no apila). Sin campo "leida": no se pidió
+// notificación de campana para esto, igual que ReaccionFotoGaleria.
+model ReaccionMensajeChat {
+  id        Int         @id @default(autoincrement())
+  mensajeId Int
+  mensaje   MensajeChat @relation(fields: [mensajeId], references: [id])
+  miembroId Int
+  miembro   Miembro     @relation(fields: [miembroId], references: [id])
+  emoji     String
+  createdAt DateTime    @default(now())
+
+  @@unique([mensajeId, miembroId])
+}
+
+// Ajuste: "eliminar solo para mí" — oculta el mensaje únicamente para quien
+// lo elimina, sin borrarlo para el resto (distinto de un borrado real, que
+// usa DELETE directo sobre MensajeChat).
+model MensajeChatOculto {
+  id        Int         @id @default(autoincrement())
+  mensajeId Int
+  mensaje   MensajeChat @relation(fields: [mensajeId], references: [id])
+  miembroId Int
+  miembro   Miembro     @relation(fields: [miembroId], references: [id])
+  createdAt DateTime    @default(now())
+
+  @@unique([mensajeId, miembroId])
 }
 
 // Fase 9: SOS / Emergencia (sección 5 del PDF). Solo una emergencia activa por miembro a la vez;
@@ -457,4 +641,48 @@ model VistaHistoria {
   vistaAt    DateTime @default(now())
 
   @@unique([historiaId, miembroId])
+}
+
+// Ajuste post-Fase 12: técnicas dominadas organizadas por categorías (Frenos,
+// Saltos, Patinaje en Fakie) — una fila por técnica activa (mismo criterio
+// que una reacción), en vez de una columna booleana por técnica. `tecnica`
+// es una clave estable definida en CATALOGO_TECNICAS (frontend); el backend
+// solo valida contra la lista plana de claves válidas.
+model MiembroTecnica {
+  id        Int      @id @default(autoincrement())
+  miembroId Int
+  miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  tecnica   String
+  createdAt DateTime @default(now())
+
+  @@unique([miembroId, tecnica])
+}
+
+// Ajuste post-Fase 12: galería de fotos del perfil (hasta MAX_FOTOS_GALERIA = 6).
+// Una fila por foto (no un JSON array como Emprendedor.fotos) porque cada foto
+// necesita su propio id y su propio contador de "me gusta".
+model FotoGaleria {
+  id        Int      @id @default(autoincrement())
+  miembroId Int
+  miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  url       String
+  createdAt DateTime @default(now())
+
+  reacciones ReaccionFotoGaleria[]
+
+  @@index([miembroId])
+}
+
+// Corazón sobre una foto puntual de la galería — mismo patrón que ReaccionPost,
+// sin campo `leida` ni notificación de campana (no se pidió, mismo criterio
+// minimalista que ReaccionEmprendedor).
+model ReaccionFotoGaleria {
+  id        Int         @id @default(autoincrement())
+  fotoId    Int
+  foto      FotoGaleria @relation(fields: [fotoId], references: [id])
+  miembroId Int
+  miembro   Miembro     @relation(fields: [miembroId], references: [id])
+  createdAt DateTime    @default(now())
+
+  @@unique([fotoId, miembroId])
 }

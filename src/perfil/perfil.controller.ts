@@ -15,10 +15,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PerfilService } from './perfil.service';
 import { EstadoDto } from './dto/estado.dto';
 import { FotoDto } from './dto/foto.dto';
+import { FotoGaleriaDto } from './dto/foto-galeria.dto';
 import { ReconocimientoDto } from './dto/reconocimiento.dto';
 
 interface RequestConUsuario {
-  user: { id: number };
+  user: { id: number; rol: string };
 }
 
 @UseGuards(JwtAuthGuard)
@@ -37,7 +38,10 @@ export class PerfilController {
   }
 
   @Patch('tecnicas/:tecnica')
-  toggleTecnica(@Req() req: RequestConUsuario, @Param('tecnica') tecnica: string) {
+  toggleTecnica(
+    @Req() req: RequestConUsuario,
+    @Param('tecnica') tecnica: string,
+  ) {
     return this.perfilService.toggleTecnica(req.user.id, tecnica);
   }
 
@@ -68,5 +72,41 @@ export class PerfilController {
     @Body() dto: ReconocimientoDto,
   ) {
     return this.perfilService.enviarReconocimiento(req.user.id, id, dto.texto);
+  }
+
+  @Get(':id/galeria')
+  galeriaDe(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.perfilService.galeriaDe(id, req.user.id);
+  }
+
+  @Post('galeria')
+  agregarFotoGaleria(
+    @Req() req: RequestConUsuario,
+    @Body() dto: FotoGaleriaDto,
+  ) {
+    return this.perfilService.agregarFotoGaleria(req.user.id, dto.url);
+  }
+
+  @Delete('galeria/:fotoId')
+  eliminarFotoGaleria(
+    @Req() req: RequestConUsuario,
+    @Param('fotoId', ParseIntPipe) fotoId: number,
+  ) {
+    return this.perfilService.eliminarFotoGaleria(
+      fotoId,
+      req.user.id,
+      req.user.rol,
+    );
+  }
+
+  @Post('galeria/:fotoId/reaccion')
+  toggleReaccionFoto(
+    @Req() req: RequestConUsuario,
+    @Param('fotoId', ParseIntPipe) fotoId: number,
+  ) {
+    return this.perfilService.toggleReaccionFoto(fotoId, req.user.id);
   }
 }

@@ -13,8 +13,14 @@ const cuentas = [
   { nombre: 'Camila Usuaria', telefono: '911111111', clave: 'usuario1234', rol: 'usuario', ciudad: 'Puerto Varas' },
 ];
 
+// Mismo marcador de posición usado en la migración 20260718200732 para las
+// cuentas ya existentes (el login pasa de teléfono a correo).
+for (const cuenta of cuentas) {
+  cuenta.correo = `${cuenta.telefono}@legionroller.local`;
+}
+
 const insertar = db.prepare(
-  `INSERT INTO Miembro (nombre, telefono, passwordHash, ciudad, rol) VALUES (@nombre, @telefono, @passwordHash, @ciudad, @rol)`,
+  `INSERT INTO Miembro (nombre, telefono, correo, passwordHash, ciudad, rol) VALUES (@nombre, @telefono, @correo, @passwordHash, @ciudad, @rol)`,
 );
 const buscar = db.prepare(`SELECT id FROM Miembro WHERE telefono = ?`);
 

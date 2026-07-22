@@ -2,7 +2,9 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsIn,
+  IsInt,
   IsNumber,
+  IsOptional,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -34,4 +36,12 @@ export class RecorridoDto {
   @ValidateNested({ each: true })
   @Type(() => PuntoDto)
   puntos: PuntoDto[];
+
+  // Rodada a la que el usuario decidió unirse al detectarla cerca (ver
+  // mapa.service.ts rodadasCercanas/guardarRecorrido). Opcional: si no se
+  // cumplen las 4 reglas de asistencia, el recorrido se guarda igual, solo
+  // que sin AsistenciaRodada asociada.
+  @IsOptional()
+  @IsInt()
+  publicacionId?: number;
 }

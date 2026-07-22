@@ -19,7 +19,7 @@ export class EmprendedoresService {
 
   private incluir() {
     return {
-      miembro: { select: { id: true, nombre: true } },
+      miembro: { select: { id: true, nombre: true, fotoUrl: true, rol: true } },
       reacciones: true,
       _count: { select: { resenas: true } },
       anuncios: { orderBy: { createdAt: 'desc' as const } },
@@ -29,11 +29,11 @@ export class EmprendedoresService {
   private formatear(e: {
     id: number;
     miembroId: number;
-    miembro: { nombre: string };
+    miembro: { nombre: string; fotoUrl: string | null };
     nombreNegocio: string;
     rubro: string;
     descripcion: string;
-    contacto: string;
+    contacto: string | null;
     ubicacion: string | null;
     instagram: string | null;
     facebook: string | null;
@@ -49,6 +49,7 @@ export class EmprendedoresService {
       id: e.id,
       miembroId: e.miembroId,
       nombreDuenio: e.miembro.nombre,
+      duenioFotoUrl: e.miembro.fotoUrl,
       nombreNegocio: e.nombreNegocio,
       rubro: e.rubro,
       descripcion: e.descripcion,
@@ -66,13 +67,27 @@ export class EmprendedoresService {
     };
   }
 
+  async misReacciones(miembroId: number) {
+    const reacciones = await this.prisma.reaccionEmprendedor.findMany({
+      where: { miembroId },
+      select: { emprendedorId: true },
+    });
+    return reacciones.map((r) => r.emprendedorId);
+  }
+
   async directorio() {
     const fichas = await this.prisma.emprendedor.findMany({
       where: { aprobado: true },
       orderBy: { solicitadoAt: 'desc' },
       include: this.incluir(),
     });
-    return fichas.map((f) => this.formatear(f));
+    // Regla del directorio: la ficha del administrador va anclada al inicio,
+    // el resto conserva su orden de siempre (más recientes primero — sort es
+    // estable, así que el orderBy de arriba se preserva dentro de cada grupo).
+    const ordenadas = [...fichas].sort(
+      (a, b) => (a.miembro.rol === 'admin' ? 0 : 1) - (b.miembro.rol === 'admin' ? 0 : 1),
+    );
+    return ordenadas.map((f) => this.formatear(f));
   }
 
   async miFicha(miembroId: number) {
@@ -418,6 +433,12 @@ export class EmprendedoresService {
       throw new ForbiddenException(
         'Solo el dueño de la ficha puede agregar anuncios',
       );
+    }
+    const cantidad = await this.prisma.anuncioEmprendedor.count({
+      where: { emprendedorId },
+    });
+    if (cantidad >= 2) {
+      throw new ConflictException('Máximo 2 anuncios por ficha');
     }
     return this.prisma.anuncioEmprendedor.create({
       data: { emprendedorId, texto },

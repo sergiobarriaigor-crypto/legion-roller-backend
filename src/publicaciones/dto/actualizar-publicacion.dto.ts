@@ -3,12 +3,17 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Min,
 } from 'class-validator';
-import { TIPOS_PUBLICACION } from './crear-publicacion.dto';
+import {
+  TIPOS_PUBLICACION,
+  TIPOS_FINALIZACION,
+  TIPOS_ASISTENCIA_EVENTO,
+} from './crear-publicacion.dto';
 
 export class ActualizarPublicacionDto {
   @IsOptional()
@@ -34,6 +39,42 @@ export class ActualizarPublicacionDto {
   @IsOptional()
   @IsString()
   puntoEncuentro?: string;
+
+  @IsOptional()
+  @IsNumber()
+  puntoLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  puntoLon?: number;
+
+  @IsOptional()
+  @IsIn(TIPOS_FINALIZACION)
+  tipoFinalizacion?: string;
+
+  @IsOptional()
+  @IsNumber()
+  puntoFinLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  puntoFinLon?: number;
+
+  @IsOptional()
+  @IsNumber()
+  distanciaMinimaKm?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  cerrada?: boolean;
+
+  @IsOptional()
+  @IsIn(TIPOS_ASISTENCIA_EVENTO)
+  tipoAsistenciaEvento?: string;
+
+  @IsOptional()
+  @IsString()
+  codigoAsistencia?: string;
 
   @IsOptional()
   @IsBoolean()

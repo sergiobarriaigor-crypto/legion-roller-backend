@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -12,9 +13,12 @@ import { ChatModule } from './chat/chat.module';
 import { EmergenciasModule } from './emergencias/emergencias.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { HistoriasModule } from './historias/historias.module';
+import { NotificacionesPushModule } from './notificaciones-push/notificaciones-push.module';
+import { ClimaModule } from './clima/clima.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     MapaModule,
@@ -26,6 +30,8 @@ import { HistoriasModule } from './historias/historias.module';
     EmergenciasModule,
     UploadsModule,
     HistoriasModule,
+    NotificacionesPushModule,
+    ClimaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
