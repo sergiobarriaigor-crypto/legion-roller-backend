@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
@@ -250,21 +246,52 @@ export class MapaService {
   }
 
   async guardarRecorrido(miembroId: number, dto: RecorridoDto) {
-    const total = await this.prisma.recorrido.count({ where: { miembroId } });
-    if (total >= MAX_RECORRIDOS_GUARDADOS) {
-      throw new ConflictException(
-        `Has alcanzado el máximo de ${MAX_RECORRIDOS_GUARDADOS} rutas guardadas. Para guardar una nueva ruta, elimina uno de tus recorridos anteriores.`,
-      );
-    }
-
     const asistenciaConfirmada = dto.publicacionId
       ? await this.cumpleReglasAsistencia(miembroId, dto.publicacionId, dto)
       : false;
+    const tipoFinal = asistenciaConfirmada ? 'ruta' : dto.tipo;
+
+    // Estadísticas permanentes del perfil (ajuste: ya no se recalculan en
+    // vivo sumando Recorrido — ver perfil.service.ts calcularStats). Se
+    // incrementan siempre, sin importar el tope de rutas guardadas de más
+    // abajo, para que "toda actividad iniciada mediante Patinando" cuente,
+    // se guarde o no el detalle del trazado.
+    await this.prisma.miembro.update({
+      where: { id: miembroId },
+      data: {
+        kmTotalesAcumulados: { increment: dto.distanciaKm },
+        kmOficialesAcumulados:
+          tipoFinal === 'ruta' ? { increment: dto.distanciaKm } : undefined,
+        duracionSegAcumulada: { increment: dto.duracionSeg },
+        numRutasAcumuladas: { increment: 1 },
+      },
+    });
+
+    // Hitos de "Distancias Alcanzadas" del perfil: se comparan contra la
+    // mejor distancia de una sola ruta, guardada aparte para que sobreviva
+    // aunque esta ruta se borre después (tope de 10 rutas guardadas).
+    await this.prisma.miembro.updateMany({
+      where: { id: miembroId, mejorDistanciaRuta: { lt: dto.distanciaKm } },
+      data: { mejorDistanciaRuta: dto.distanciaKm },
+    });
+
+    // El tope de rutas guardadas solo limita cuántos recorridos con detalle
+    // (trazado, mapa, favoritos) se conservan — las estadísticas de arriba
+    // ya se guardaron pase lo que pase acá abajo.
+    const total = await this.prisma.recorrido.count({ where: { miembroId } });
+    if (total >= MAX_RECORRIDOS_GUARDADOS) {
+      return {
+        id: null,
+        guardadoDetalle: false,
+        mensaje: `Tus estadísticas se guardaron, pero alcanzaste el máximo de ${MAX_RECORRIDOS_GUARDADOS} rutas guardadas. Elimina una para conservar el detalle de esta.`,
+      };
+    }
 
     const recorrido = await this.prisma.recorrido.create({
       data: {
         miembroId,
-        tipo: asistenciaConfirmada ? 'ruta' : dto.tipo,
+        tipo: tipoFinal,
+        mapeado: dto.mapeado,
         distanciaKm: dto.distanciaKm,
         duracionSeg: dto.duracionSeg,
         puntos: JSON.stringify(dto.puntos),
@@ -288,17 +315,17 @@ export class MapaService {
       });
     }
 
-    // Hitos de "Distancias Alcanzadas" del perfil: se comparan contra la
-    // mejor distancia de una sola ruta, guardada aparte para que sobreviva
-    // aunque esta ruta se borre después (tope de 10 rutas guardadas).
-    await this.prisma.miembro.updateMany({
-      where: { id: miembroId, mejorDistanciaRuta: { lt: dto.distanciaKm } },
-      data: { mejorDistanciaRuta: dto.distanciaKm },
-    });
-
-    return { id: recorrido.id, mensaje: 'Recorrido guardado' };
+    return {
+      id: recorrido.id,
+      guardadoDetalle: true,
+      mensaje: 'Recorrido guardado',
+    };
   }
 
+  // Ojo: esto NUNCA debe tocar los contadores permanentes del Miembro
+  // (kmTotalesAcumulados/kmOficialesAcumulados/duracionSegAcumulada/
+  // numRutasAcumuladas) — borrar el detalle de un recorrido no debe restar
+  // nada de las estadísticas ya acumuladas en guardarRecorrido.
   async eliminarRecorrido(miembroId: number, id: number) {
     const recorrido = await this.prisma.recorrido.findFirst({
       where: { id, miembroId },
@@ -330,6 +357,7 @@ export class MapaService {
       select: {
         id: true,
         tipo: true,
+        mapeado: true,
         distanciaKm: true,
         duracionSeg: true,
         createdAt: true,
@@ -341,11 +369,15 @@ export class MapaService {
     return recorridos.map((r) => ({
       id: r.id,
       tipo: r.tipo,
+      mapeado: r.mapeado,
       distanciaKm: r.distanciaKm,
       duracionSeg: r.duracionSeg,
       createdAt: r.createdAt,
       favorito: r.favorito,
-      puntos: this.decimarPuntos(JSON.parse(r.puntos)),
+      // La base siempre guarda el trazado real (auditoría/asistencia), pero
+      // si el usuario eligió no mapear, la API nunca lo entrega — así el
+      // frontend no tiene forma de dibujarlo aunque quisiera.
+      puntos: r.mapeado ? this.decimarPuntos(JSON.parse(r.puntos)) : [],
     }));
   }
 

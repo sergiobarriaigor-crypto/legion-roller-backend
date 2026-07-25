@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -31,6 +32,13 @@ export class RecorridoDto {
   @IsNumber()
   @Min(0)
   duracionSeg: number;
+
+  // "Patinar sin mapear": el GPS se sigue grabando igual (ver
+  // mapa.service.ts guardarRecorrido/cumpleReglasAsistencia), pero si es
+  // false el frontend nunca debe dibujar/mostrar el trazado — ver
+  // misRecorridos() en mapa.service.ts.
+  @IsBoolean()
+  mapeado: boolean;
 
   @IsArray()
   @ValidateNested({ each: true })

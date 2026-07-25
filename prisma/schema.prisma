@@ -46,6 +46,18 @@ model Miembro {
   // usuario borra esa ruta después (hay un tope de 10 rutas guardadas).
   mejorDistanciaRuta Float @default(0)
 
+  // Contadores permanentes de perfil (ajuste: los stats ya no se recalculan en
+  // vivo sumando Recorrido — ver perfil.service.ts calcularStats). Se
+  // incrementan una sola vez, en mapa.service.ts guardarRecorrido, cada vez
+  // que termina una sesión de "Patinando"/"Estoy en Ruta" (mapeada o no) — y
+  // nunca se decrementan, ni siquiera si el Recorrido que los generó se borra
+  // después desde "Mis rutas". Arrancan en 0 para todos (sin migración de
+  // datos históricos).
+  kmTotalesAcumulados   Float @default(0)
+  kmOficialesAcumulados Float @default(0) // solo recorridos tipo "ruta"
+  duracionSegAcumulada  Int   @default(0)
+  numRutasAcumuladas    Int   @default(0)
+
   // Ajuste post-Fase 12: técnicas dominadas por categorías (Frenos/Saltos/Fakie),
   // reemplaza las columnas booleanas fijas de la Fase 7 — no escalaban a una
   // lista más larga y extensible (ver CATALOGO_TECNICAS en el frontend).
@@ -147,6 +159,13 @@ model Recorrido {
   miembroId   Int
   miembro     Miembro  @relation(fields: [miembroId], references: [id])
   tipo        String   @default("libre") // "ruta" | "libre"
+  // Ajuste: "Patinar sin mapear" — el GPS sigue grabándose completo internamente
+  // (para asistencia y precisión), pero si el usuario eligió no mapear, el
+  // trazado nunca debe mostrarse/dibujarse en ningún lugar de la UI. `puntos`
+  // igual guarda el recorrido real (auditoría/asistencia); es misRecorridos()
+  // en mapa.service.ts el que decide devolver `puntos: []` al frontend cuando
+  // mapeado es false.
+  mapeado     Boolean  @default(true)
   distanciaKm Float
   duracionSeg Int
   puntos      String

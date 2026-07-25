@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Miembro } from '../../generated/prisma/client';
 
 const HORAS_ESTADO = 8;
 const DIAS_VIGENCIA_RECO = 30;
@@ -34,36 +35,32 @@ const TECNICAS_VALIDAS = [
 export class PerfilService {
   constructor(private prisma: PrismaService) {}
 
-  private async calcularStats(miembroId: number) {
-    const recorridos = await this.prisma.recorrido.findMany({
-      where: { miembroId },
-    });
-    const kmTotales = recorridos.reduce((s, r) => s + r.distanciaKm, 0);
-    const kmOficiales = recorridos
-      .filter((r) => r.tipo === 'ruta')
-      .reduce((s, r) => s + r.distanciaKm, 0);
-    const horasPatinadas =
-      recorridos.reduce((s, r) => s + r.duracionSeg, 0) / 3600;
-
+  // Ajuste: los stats ya no se recalculan en vivo sumando Recorrido — se leen
+  // directo de los contadores permanentes del Miembro (ver
+  // mapa.service.ts guardarRecorrido, que los incrementa una sola vez al
+  // terminar cada actividad y nunca los decrementa). Recibe el `miembro` ya
+  // obtenido por el llamador para no repetir la query.
+  private async calcularStats(miembro: Miembro) {
     // "asistencias" y "eventos" ya no cuentan el RSVP en sí (eso solo es
     // intención de ir), sino la asistencia confirmada: por GPS/ruta para
     // rodadas (AsistenciaRodada, ver mapa.service.ts) y por las reglas de
     // publicaciones.service.ts confirmarAsistenciaEvento para eventos
     // (AsistenciaEvento).
     const asistencias = await this.prisma.asistenciaRodada.count({
-      where: { miembroId },
+      where: { miembroId: miembro.id },
     });
     const eventos = await this.prisma.asistenciaEvento.count({
-      where: { miembroId },
+      where: { miembroId: miembro.id },
     });
 
     return {
-      kmOficiales: Math.round(kmOficiales * 100) / 100,
-      kmTotales: Math.round(kmTotales * 100) / 100,
-      numRutas: recorridos.length,
+      kmOficiales: Math.round(miembro.kmOficialesAcumulados * 100) / 100,
+      kmTotales: Math.round(miembro.kmTotalesAcumulados * 100) / 100,
+      numRutas: miembro.numRutasAcumuladas,
       asistencias,
       eventos,
-      horasPatinadas: Math.round(horasPatinadas * 10) / 10,
+      horasPatinadas:
+        Math.round((miembro.duracionSegAcumulada / 3600) * 10) / 10,
     };
   }
 
@@ -80,7 +77,7 @@ export class PerfilService {
 
   async perfilPublico(miembroId: number) {
     const miembro = await this.obtenerOFallar(miembroId);
-    const stats = await this.calcularStats(miembroId);
+    const stats = await this.calcularStats(miembro);
     const tecnicas = await this.prisma.miembroTecnica.findMany({
       where: { miembroId },
       select: { tecnica: true },
