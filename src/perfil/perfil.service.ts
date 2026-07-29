@@ -59,8 +59,7 @@ export class PerfilService {
       numRutas: miembro.numRutasAcumuladas,
       asistencias,
       eventos,
-      horasPatinadas:
-        Math.round((miembro.duracionSegAcumulada / 3600) * 10) / 10,
+      duracionMinutos: Math.round(miembro.duracionSegAcumulada / 60),
     };
   }
 
