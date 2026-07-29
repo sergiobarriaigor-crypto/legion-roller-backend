@@ -7,6 +7,17 @@ const HORAS_VIGENCIA_PATINANDO = 4;
 const HORAS_ESTADO = 8;
 const MAX_RECORRIDOS_GUARDADOS = 10;
 
+// Si el usuario cierra la app sin presionar "Terminar de patinar" (se le
+// acaba la batería, pierde señal, mata la app), la fila de UbicacionActiva
+// nunca se borra — sigue "activa" hasta que patinandoAhora() la filtra por
+// vigencia. Si vuelve a abrir la app después de un vacío real de pings (el
+// frontend manda uno cada 20s mientras el modo sigue activo), sin esto el
+// upsert de abajo solo actualiza lat/lon/modo y deja iniciadoEn pegado en el
+// arranque original — dando una antigüedad falsa ("hace 3 días") para una
+// sesión que en los hechos recién está retomando. 3 minutos sin ping es más
+// que suficiente para distinguir un corte real de un simple parpadeo de red.
+const MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION = 3;
+
 // Reglas de "Asistencia Confirmada" a una rodada (ajuste post-Fase 12): un
 // recorrido solo genera AsistenciaRodada si el usuario marcó "Voy" antes,
 // activó "Estoy en Ruta", estuvo dentro de RADIO_ASISTENCIA_KM del punto de
@@ -22,10 +33,23 @@ export class MapaService {
 
   async activarPatinando(miembroId: number, dto: UbicacionDto) {
     const modo = dto.modo ?? 'patinando';
+    const existente = await this.prisma.ubicacionActiva.findUnique({
+      where: { miembroId },
+    });
+    const vacioLargo =
+      existente &&
+      Date.now() - existente.actualizadoEn.getTime() >
+        MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION * 60 * 1000;
+
     const ubicacion = await this.prisma.ubicacionActiva.upsert({
       where: { miembroId },
       create: { miembroId, lat: dto.lat, lon: dto.lon, modo },
-      update: { lat: dto.lat, lon: dto.lon, modo },
+      update: {
+        lat: dto.lat,
+        lon: dto.lon,
+        modo,
+        ...(vacioLargo ? { iniciadoEn: new Date() } : {}),
+      },
     });
     return ubicacion;
   }
