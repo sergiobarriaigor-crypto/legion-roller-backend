@@ -18,6 +18,14 @@ const MAX_RECORRIDOS_GUARDADOS = 10;
 // que suficiente para distinguir un corte real de un simple parpadeo de red.
 const MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION = 3;
 
+// Sin esto, tocar "Patinando" y de inmediato "Terminar de patinar" ya cuenta
+// como 1 ruta permanente de 0.00 km (los contadores del perfil nunca se
+// restan, ver guardarRecorrido más abajo). Mismo criterio que ya existe en
+// el frontend para "movimiento significativo" (~30m) — un poco más generoso
+// acá porque esto decide si CUENTA la sesión entera, no solo un tramo.
+const DISTANCIA_MINIMA_GUARDAR_KM = 0.05;
+const DURACION_MINIMA_GUARDAR_SEG = 45;
+
 // Reglas de "Asistencia Confirmada" a una rodada (ajuste post-Fase 12): un
 // recorrido solo genera AsistenciaRodada si el usuario marcó "Voy" antes,
 // activó "Estoy en Ruta", estuvo dentro de RADIO_ASISTENCIA_KM del punto de
@@ -270,6 +278,18 @@ export class MapaService {
   }
 
   async guardarRecorrido(miembroId: number, dto: RecorridoDto) {
+    // Toque accidental (activar y cortar casi de inmediato): no se guarda
+    // nada -- ni Recorrido, ni suma a los contadores permanentes -- y no se
+    // muestra ningún error, simplemente no pasó nada. La asistencia oficial
+    // confirmada siempre exige DISTANCIA_MINIMA_ASISTENCIA_KM (3km), muy por
+    // encima de este umbral, así que nunca se descarta una asistencia real.
+    if (
+      dto.distanciaKm < DISTANCIA_MINIMA_GUARDAR_KM &&
+      dto.duracionSeg < DURACION_MINIMA_GUARDAR_SEG
+    ) {
+      return { id: null, guardado: false };
+    }
+
     const asistenciaConfirmada = dto.publicacionId
       ? await this.cumpleReglasAsistencia(miembroId, dto.publicacionId, dto)
       : false;
