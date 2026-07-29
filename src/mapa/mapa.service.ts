@@ -275,16 +275,23 @@ export class MapaService {
       data: { mejorDistanciaRuta: dto.distanciaKm },
     });
 
-    // El tope de rutas guardadas solo limita cuántos recorridos con detalle
-    // (trazado, mapa, favoritos) se conservan — las estadísticas de arriba
-    // ya se guardaron pase lo que pase acá abajo.
-    const total = await this.prisma.recorrido.count({ where: { miembroId } });
-    if (total >= MAX_RECORRIDOS_GUARDADOS) {
-      return {
-        id: null,
-        guardadoDetalle: false,
-        mensaje: `Tus estadísticas se guardaron, pero alcanzaste el máximo de ${MAX_RECORRIDOS_GUARDADOS} rutas guardadas. Elimina una para conservar el detalle de esta.`,
-      };
+    // El tope de "Mis rutas" solo aplica a lo mapeado (esa sección existe
+    // para guardar el trazado/mapa de rutas mapeadas, con cupo limitado) — una
+    // sesión sin mapear nunca compite por ese cupo ni se bloquea por esto,
+    // porque de todas formas no guarda trazado y siempre debe quedar
+    // registrada completa en el Historial de recorridos del perfil (sin
+    // tope). Las estadísticas de arriba ya se guardaron pase lo que pase acá.
+    if (dto.mapeado) {
+      const totalMapeados = await this.prisma.recorrido.count({
+        where: { miembroId, mapeado: true },
+      });
+      if (totalMapeados >= MAX_RECORRIDOS_GUARDADOS) {
+        return {
+          id: null,
+          guardadoDetalle: false,
+          mensaje: `Tus estadísticas se guardaron, pero alcanzaste el máximo de ${MAX_RECORRIDOS_GUARDADOS} rutas mapeadas en Mis Rutas. Quita el mapeo de una para guardar el detalle de esta.`,
+        };
+      }
     }
 
     const recorrido = await this.prisma.recorrido.create({
@@ -322,18 +329,25 @@ export class MapaService {
     };
   }
 
-  // Ojo: esto NUNCA debe tocar los contadores permanentes del Miembro
-  // (kmTotalesAcumulados/kmOficialesAcumulados/duracionSegAcumulada/
-  // numRutasAcumuladas) — borrar el detalle de un recorrido no debe restar
-  // nada de las estadísticas ya acumuladas en guardarRecorrido.
+  // "Eliminar" desde Mis Rutas ya no borra la fila — esa sección existe para
+  // guardar rutas mapeadas, así que "eliminar" en realidad le quita la marca
+  // de mapeado. Así: desaparece de Mis Rutas (deja de contar para el tope de
+  // 10 mapeadas), pero la actividad sigue existiendo en el Historial de
+  // recorridos del perfil (con la etiqueta "· SM"), y esto NUNCA toca los
+  // contadores permanentes del Miembro (kmTotalesAcumulados/etc.) — quitar el
+  // mapeo no debe restar nada de las estadísticas ya acumuladas en
+  // guardarRecorrido.
   async eliminarRecorrido(miembroId: number, id: number) {
     const recorrido = await this.prisma.recorrido.findFirst({
       where: { id, miembroId },
     });
     if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
 
-    await this.prisma.recorrido.delete({ where: { id } });
-    return { mensaje: 'Recorrido eliminado' };
+    await this.prisma.recorrido.update({
+      where: { id },
+      data: { mapeado: false },
+    });
+    return { mensaje: 'Se quitó el mapeo de este recorrido' };
   }
 
   async alternarFavorito(miembroId: number, id: number) {
@@ -349,9 +363,15 @@ export class MapaService {
     return { favorito: actualizado.favorito };
   }
 
+  // "Mis rutas": esta sección existe específicamente para guardar el
+  // trazado/mapa de rutas mapeadas (con cupo de MAX_RECORRIDOS_GUARDADOS) —
+  // por eso solo trae `mapeado: true`. Las actividades sin mapear (o las que
+  // el usuario "eliminó" de acá, que en realidad solo les quita el mapeado —
+  // ver eliminarRecorrido) nunca aparecen en esta lista; siguen existiendo en
+  // el Historial de recorridos del perfil (ver historialRecorridos).
   async misRecorridos(miembroId: number) {
     const recorridos = await this.prisma.recorrido.findMany({
-      where: { miembroId },
+      where: { miembroId, mapeado: true },
       orderBy: { createdAt: 'desc' },
       take: MAX_RECORRIDOS_GUARDADOS,
       select: {
@@ -374,11 +394,30 @@ export class MapaService {
       duracionSeg: r.duracionSeg,
       createdAt: r.createdAt,
       favorito: r.favorito,
-      // La base siempre guarda el trazado real (auditoría/asistencia), pero
-      // si el usuario eligió no mapear, la API nunca lo entrega — así el
-      // frontend no tiene forma de dibujarlo aunque quisiera.
-      puntos: r.mapeado ? this.decimarPuntos(JSON.parse(r.puntos)) : [],
+      puntos: this.decimarPuntos(JSON.parse(r.puntos)),
     }));
+  }
+
+  // Historial de recorridos del perfil: TODAS las actividades (mapeadas, sin
+  // mapear, rodadas oficiales) sin ningún tope — a diferencia de "Mis rutas",
+  // acá no importa el cupo de 10 porque esta lista no guarda trazado (el
+  // perfil solo muestra fecha/distancia/tiempo/tipo), así que no hace falta
+  // pedir `puntos` ni `favorito`.
+  async historialRecorridos(miembroId: number) {
+    const recorridos = await this.prisma.recorrido.findMany({
+      where: { miembroId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        tipo: true,
+        mapeado: true,
+        distanciaKm: true,
+        duracionSeg: true,
+        createdAt: true,
+      },
+    });
+
+    return recorridos;
   }
 
   // Reduce la cantidad de puntos que viajan al frontend para la vista previa

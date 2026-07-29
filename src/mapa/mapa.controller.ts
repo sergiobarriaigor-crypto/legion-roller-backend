@@ -63,6 +63,11 @@ export class MapaController {
     return this.mapaService.misRecorridos(req.user.id);
   }
 
+  @Get('historial')
+  historialRecorridos(@Req() req: RequestConUsuario) {
+    return this.mapaService.historialRecorridos(req.user.id);
+  }
+
   @Delete('recorridos/:id')
   eliminarRecorrido(
     @Req() req: RequestConUsuario,
