@@ -44,6 +44,12 @@ export class PublicacionesController {
     return this.publicacionesService.misAsistenciasEvento(req.user.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('mis-reacciones')
+  misReacciones(@Req() req: RequestConUsuario) {
+    return this.publicacionesService.misReacciones(req.user.id);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Post()
@@ -73,6 +79,15 @@ export class PublicacionesController {
   @Get(':id/rsvps')
   detalleRsvps(@Param('id', ParseIntPipe) id: number) {
     return this.publicacionesService.detalleRsvps(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/reaccion')
+  toggleReaccion(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.publicacionesService.toggleReaccion(id, req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -106,6 +106,8 @@ model Miembro {
 
   reaccionesMensajeChat ReaccionMensajeChat[]
   mensajesOcultos       MensajeChatOculto[]
+
+  reaccionesPublicacion ReaccionPublicacion[]
 }
 
 // Ajuste post-Fase 12: suscripción de Web Push de un dispositivo/navegador
@@ -245,6 +247,21 @@ model Publicacion {
   rsvps            RsvpRespuesta[]
   asistencias      AsistenciaRodada[]
   asistenciasEvento AsistenciaEvento[]
+  reacciones       ReaccionPublicacion[]
+}
+
+// Ajuste: "me gusta" (corazón dorado) en los comunicados de Comunidad, mismo
+// patrón que ReaccionPost — sin el campo "leida" de campana de notificaciones
+// porque acá no se pidió esa parte.
+model ReaccionPublicacion {
+  id            Int         @id @default(autoincrement())
+  publicacionId Int
+  publicacion   Publicacion @relation(fields: [publicacionId], references: [id])
+  miembroId     Int
+  miembro       Miembro     @relation(fields: [miembroId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([publicacionId, miembroId])
 }
 
 // Ajuste: asistencia confirmada a un EVENTO (ver reglas en

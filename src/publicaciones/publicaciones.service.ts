@@ -64,6 +64,7 @@ export class PublicacionesService {
   async listar() {
     const publicaciones = await this.prisma.publicacion.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { reacciones: true } } },
     });
 
     const vigentes = publicaciones.filter((p) => !this.estaVencida(p));
@@ -76,9 +77,11 @@ export class PublicacionesService {
       : [];
 
     return vigentes.map((p) => {
+      const { _count, ...resto } = p;
       const propios = rsvps.filter((r) => r.publicacionId === p.id);
       return {
-        ...this.formatear(p),
+        ...this.formatear(resto),
+        reaccionesCount: _count.reacciones,
         rsvpCounts: {
           yes: propios.filter((r) => r.estado === 'yes').length,
           maybe: propios.filter((r) => r.estado === 'maybe').length,
@@ -86,6 +89,38 @@ export class PublicacionesService {
         },
       };
     });
+  }
+
+  // "Me gusta" (corazón dorado) en los comunicados de Comunidad, mismo patrón
+  // que PostsService.toggleReaccion/misReacciones.
+  async misReacciones(miembroId: number) {
+    const reacciones = await this.prisma.reaccionPublicacion.findMany({
+      where: { miembroId },
+      select: { publicacionId: true },
+    });
+    return reacciones.map((r) => r.publicacionId);
+  }
+
+  async toggleReaccion(publicacionId: number, miembroId: number) {
+    await this.obtenerOFallar(publicacionId);
+    const existente = await this.prisma.reaccionPublicacion.findUnique({
+      where: { publicacionId_miembroId: { publicacionId, miembroId } },
+    });
+
+    if (existente) {
+      await this.prisma.reaccionPublicacion.delete({
+        where: { id: existente.id },
+      });
+    } else {
+      await this.prisma.reaccionPublicacion.create({
+        data: { publicacionId, miembroId },
+      });
+    }
+
+    const total = await this.prisma.reaccionPublicacion.count({
+      where: { publicacionId },
+    });
+    return { reaccionesCount: total, miReaccion: !existente };
   }
 
   async misRsvps(miembroId: number) {
@@ -134,6 +169,9 @@ export class PublicacionesService {
       where: { publicacionId: id },
     });
     await this.prisma.asistenciaEvento.deleteMany({
+      where: { publicacionId: id },
+    });
+    await this.prisma.reaccionPublicacion.deleteMany({
       where: { publicacionId: id },
     });
     await this.prisma.publicacion.delete({ where: { id } });
