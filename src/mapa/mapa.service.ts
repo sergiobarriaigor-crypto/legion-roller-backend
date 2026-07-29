@@ -20,11 +20,13 @@ const MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION = 3;
 
 // Sin esto, tocar "Patinando" y de inmediato "Terminar de patinar" ya cuenta
 // como 1 ruta permanente de 0.00 km (los contadores del perfil nunca se
-// restan, ver guardarRecorrido más abajo). Mismo criterio que ya existe en
-// el frontend para "movimiento significativo" (~30m) — un poco más generoso
-// acá porque esto decide si CUENTA la sesión entera, no solo un tramo.
+// restan, ver guardarRecorrido más abajo). Solo la distancia decide -- la
+// duración no alcanza por sí sola, porque quedarse parado con el modo activo
+// (0 km, sin importar cuánto dure) tampoco es una actividad real. Mismo
+// criterio que ya existe en el frontend para "movimiento significativo"
+// (~30m) — un poco más generoso acá porque esto decide si CUENTA la sesión
+// entera, no solo un tramo.
 const DISTANCIA_MINIMA_GUARDAR_KM = 0.05;
-const DURACION_MINIMA_GUARDAR_SEG = 45;
 
 // Reglas de "Asistencia Confirmada" a una rodada (ajuste post-Fase 12): un
 // recorrido solo genera AsistenciaRodada si el usuario marcó "Voy" antes,
@@ -278,15 +280,15 @@ export class MapaService {
   }
 
   async guardarRecorrido(miembroId: number, dto: RecorridoDto) {
-    // Toque accidental (activar y cortar casi de inmediato): no se guarda
-    // nada -- ni Recorrido, ni suma a los contadores permanentes -- y no se
-    // muestra ningún error, simplemente no pasó nada. La asistencia oficial
-    // confirmada siempre exige DISTANCIA_MINIMA_ASISTENCIA_KM (3km), muy por
-    // encima de este umbral, así que nunca se descarta una asistencia real.
-    if (
-      dto.distanciaKm < DISTANCIA_MINIMA_GUARDAR_KM &&
-      dto.duracionSeg < DURACION_MINIMA_GUARDAR_SEG
-    ) {
+    // Toque accidental o quedarse parado con el modo activo (sin desplazarse
+    // realmente): no se guarda nada -- ni Recorrido, ni suma a los contadores
+    // permanentes -- y no se muestra ningún error, simplemente no pasó nada.
+    // Solo la distancia decide, no la duración -- 50m recorridos en 5s cuentan
+    // igual que en 5 minutos, pero 0km durante media hora sigue siendo 0km. La
+    // asistencia oficial confirmada siempre exige DISTANCIA_MINIMA_ASISTENCIA_KM
+    // (3km), muy por encima de este umbral, así que nunca se descarta una
+    // asistencia real.
+    if (dto.distanciaKm < DISTANCIA_MINIMA_GUARDAR_KM) {
       return { id: null, guardado: false };
     }
 
