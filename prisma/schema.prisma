@@ -481,18 +481,25 @@ model MensajeChat {
   // Ajuste: adjuntos. "ruta" guarda una foto (snapshot) de la Recorrido
   // elegida en vez de una FK, para que borrar la ruta original desde "Mis
   // rutas" no rompa un mensaje ya enviado.
-  adjuntoTipo            String? // "foto" | "ubicacion" | "ruta"
-  adjuntoUrl             String? // "foto"
+  adjuntoTipo            String? // "foto" | "ubicacion" | "ruta" | "video" | "archivo" | "audio"
+  adjuntoUrl             String? // "foto" | "video" | "archivo" | "audio"
   adjuntoUbicacionNombre String? // "ubicacion" — etiqueta descriptiva (sector más cercano)
   // Ajuste: ubicación exacta en Chat (a diferencia de Post/Historias, que solo
   // comparten el nombre del sector) — el chat es una conversación privada, no
   // un feed comunitario, así que acá sí tiene sentido compartir la posición
   // real, como hace WhatsApp.
-  adjuntoUbicacionLat    Float?
-  adjuntoUbicacionLon    Float?
-  adjuntoRutaDistanciaKm Float?
-  adjuntoRutaDuracionSeg Int?
-  adjuntoRutaPuntos      String? // "ruta" — JSON [{lat,lon,timestamp}], decimado
+  adjuntoUbicacionLat      Float?
+  adjuntoUbicacionLon      Float?
+  adjuntoRutaDistanciaKm   Float?
+  adjuntoRutaDuracionSeg   Int?
+  adjuntoRutaPuntos        String? // "ruta" — JSON [{lat,lon,timestamp}], decimado
+  // Ajuste: álbumes/documentos/notas de voz. "archivo" guarda el nombre
+  // original (mostrado en la burbuja, el nombre en disco es un hash) y el
+  // tamaño en bytes; "audio" guarda la duración para mostrarla sin tener que
+  // cargar el archivo entero.
+  adjuntoArchivoNombre     String? // "archivo"
+  adjuntoArchivoTamanoKb   Int? // "archivo"
+  adjuntoAudioDuracionSeg  Int? // "audio"
 
   reacciones    ReaccionMensajeChat[]
   ocultamientos MensajeChatOculto[]

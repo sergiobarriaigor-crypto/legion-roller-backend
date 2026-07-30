@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -38,6 +39,19 @@ export class ChatController {
   @Get('mensajes/:sala')
   mensajes(@Req() req: RequestConUsuario, @Param('sala') sala: string) {
     return this.chatService.mensajes(sala, req.user.id);
+  }
+
+  // Álbum: adjuntos ya enviados en la sala, agrupados por tipo.
+  @Get('mensajes/:sala/adjuntos')
+  adjuntos(
+    @Req() req: RequestConUsuario,
+    @Param('sala') sala: string,
+    @Query('tipo') tipo: string,
+  ) {
+    if (tipo !== 'foto' && tipo !== 'video' && tipo !== 'archivo') {
+      throw new BadRequestException('tipo debe ser foto, video o archivo');
+    }
+    return this.chatService.adjuntosDeSala(sala, req.user.id, tipo);
   }
 
   @Get('lectura/:sala')

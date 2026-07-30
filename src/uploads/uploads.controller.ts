@@ -13,6 +13,17 @@ import { extname } from 'node:path';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+// Documentos aceptados en el chat (mensajes tipo "archivo"): PDF y
+// Word/Excel, tanto el formato viejo (.doc/.xls) como el moderno basado en
+// XML (.docx/.xlsx).
+const MIMETYPES_DOCUMENTO = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+
 const nombrarArchivo = (
   _req: unknown,
   file: Express.Multer.File,
@@ -37,10 +48,13 @@ export class UploadsController {
       fileFilter: (_req, file, cb) => {
         if (
           !file.mimetype.startsWith('image/') &&
-          !file.mimetype.startsWith('video/')
+          !file.mimetype.startsWith('video/') &&
+          !MIMETYPES_DOCUMENTO.includes(file.mimetype)
         ) {
           cb(
-            new BadRequestException('Solo se permiten imágenes o videos'),
+            new BadRequestException(
+              'Solo se permiten imágenes, videos, PDF o Word/Excel',
+            ),
             false,
           );
           return;

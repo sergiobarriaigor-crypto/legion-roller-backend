@@ -173,6 +173,45 @@ export class ChatService {
     return mensajes.map((m) => this.serializarMensaje(m));
   }
 
+  // Álbum: no es un dato nuevo a guardar, solo una vista filtrada de los
+  // adjuntos ya enviados en la sala, agrupados por tipo — mismo criterio de
+  // acceso/vigencia/ocultamiento que mensajes().
+  async adjuntosDeSala(
+    sala: string,
+    miembroId: number,
+    tipo: 'foto' | 'video' | 'archivo',
+  ) {
+    this.verificarAcceso(sala, miembroId);
+    const limite = this.limiteVigencia();
+
+    const mensajes = await this.prisma.mensajeChat.findMany({
+      where: {
+        sala,
+        adjuntoTipo: tipo,
+        createdAt: { gte: limite },
+        ocultamientos: { none: { miembroId } },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        adjuntoUrl: true,
+        adjuntoArchivoNombre: true,
+        adjuntoArchivoTamanoKb: true,
+        createdAt: true,
+        autor: { select: { nombre: true } },
+      },
+    });
+
+    return mensajes.map((m) => ({
+      id: m.id,
+      url: m.adjuntoUrl,
+      nombre: m.adjuntoArchivoNombre,
+      tamanoKb: m.adjuntoArchivoTamanoKb,
+      createdAt: m.createdAt,
+      autorNombre: m.autor.nombre,
+    }));
+  }
+
   private serializarMensaje(m: {
     id: number;
     sala: string;
@@ -192,6 +231,9 @@ export class ChatService {
     adjuntoRutaDistanciaKm: number | null;
     adjuntoRutaDuracionSeg: number | null;
     adjuntoRutaPuntos: string | null;
+    adjuntoArchivoNombre: string | null;
+    adjuntoArchivoTamanoKb: number | null;
+    adjuntoAudioDuracionSeg: number | null;
     reacciones: { miembroId: number; emoji: string }[];
   }) {
     return {
@@ -217,6 +259,9 @@ export class ChatService {
       adjuntoRutaDistanciaKm: m.adjuntoRutaDistanciaKm,
       adjuntoRutaDuracionSeg: m.adjuntoRutaDuracionSeg,
       adjuntoRutaPuntos: m.adjuntoRutaPuntos,
+      adjuntoArchivoNombre: m.adjuntoArchivoNombre,
+      adjuntoArchivoTamanoKb: m.adjuntoArchivoTamanoKb,
+      adjuntoAudioDuracionSeg: m.adjuntoAudioDuracionSeg,
       reacciones: m.reacciones,
     };
   }
@@ -282,6 +327,9 @@ export class ChatService {
         adjuntoRutaDistanciaKm: dto.adjuntoRutaDistanciaKm,
         adjuntoRutaDuracionSeg: dto.adjuntoRutaDuracionSeg,
         adjuntoRutaPuntos: dto.adjuntoRutaPuntos,
+        adjuntoArchivoNombre: dto.adjuntoArchivoNombre,
+        adjuntoArchivoTamanoKb: dto.adjuntoArchivoTamanoKb,
+        adjuntoAudioDuracionSeg: dto.adjuntoAudioDuracionSeg,
       },
       include: {
         autor: { select: { id: true, nombre: true, fotoUrl: true } },
@@ -490,6 +538,10 @@ export class ChatService {
           adjuntoRutaDistanciaKm: original.adjuntoRutaDistanciaKm ?? undefined,
           adjuntoRutaDuracionSeg: original.adjuntoRutaDuracionSeg ?? undefined,
           adjuntoRutaPuntos: original.adjuntoRutaPuntos ?? undefined,
+          adjuntoArchivoNombre: original.adjuntoArchivoNombre ?? undefined,
+          adjuntoArchivoTamanoKb: original.adjuntoArchivoTamanoKb ?? undefined,
+          adjuntoAudioDuracionSeg:
+            original.adjuntoAudioDuracionSeg ?? undefined,
         },
         mensajeId,
       );

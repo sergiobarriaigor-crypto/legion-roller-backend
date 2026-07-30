@@ -1,6 +1,20 @@
-import { IsIn, IsInt, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
-const TIPOS_ADJUNTO = ['foto', 'ubicacion', 'ruta'] as const;
+const TIPOS_ADJUNTO = [
+  'foto',
+  'ubicacion',
+  'ruta',
+  'video',
+  'archivo',
+  'audio',
+] as const;
 
 export class MensajeDto {
   // Opcional para permitir un adjunto sin texto (ej. una foto sin descripción);
@@ -52,4 +66,17 @@ export class MensajeDto {
   @IsOptional()
   @IsString()
   adjuntoRutaPuntos?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  adjuntoArchivoNombre?: string;
+
+  @IsOptional()
+  @IsInt()
+  adjuntoArchivoTamanoKb?: number;
+
+  @IsOptional()
+  @IsInt()
+  adjuntoAudioDuracionSeg?: number;
 }
