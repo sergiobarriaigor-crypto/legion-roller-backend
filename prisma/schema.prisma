@@ -106,6 +106,7 @@ model Miembro {
 
   reaccionesMensajeChat ReaccionMensajeChat[]
   mensajesOcultos       MensajeChatOculto[]
+  votosEncuestaChat     VotoEncuestaChat[]
 
   reaccionesPublicacion ReaccionPublicacion[]
 }
@@ -508,6 +509,10 @@ model MensajeChat {
   fijado   Boolean   @default(false)
   fijadoEn DateTime?
 
+  // Ajuste: encuesta en el chat grupal. adjuntoTipo:"encuesta", la pregunta es
+  // el propio "texto" de este mensaje (igual que un mensaje de texto normal).
+  encuesta EncuestaChat?
+
   reacciones    ReaccionMensajeChat[]
   ocultamientos MensajeChatOculto[]
 
@@ -555,6 +560,46 @@ model MensajeChatOculto {
   createdAt DateTime    @default(now())
 
   @@unique([mensajeId, miembroId])
+}
+
+// Ajuste: encuesta en el chat grupal. Cualquiera puede crearla; eliminarla es
+// exactamente eliminarMensaje(modo:"todos") sobre el MensajeChat dueño — mismo
+// chequeo de permiso (autor o admin) que ya existe ahí, así que no hace falta
+// un endpoint de borrado aparte (sí hace falta limpiar estas 3 tablas antes,
+// ver eliminarMensaje/purgarMensajesVencidos en chat.service.ts).
+model EncuestaChat {
+  id        Int         @id @default(autoincrement())
+  mensajeId Int         @unique
+  mensaje   MensajeChat @relation(fields: [mensajeId], references: [id])
+  createdAt DateTime    @default(now())
+
+  opciones OpcionEncuestaChat[]
+  votos    VotoEncuestaChat[]
+}
+
+model OpcionEncuestaChat {
+  id         Int          @id @default(autoincrement())
+  encuestaId Int
+  encuesta   EncuestaChat @relation(fields: [encuestaId], references: [id])
+  texto      String
+
+  votos VotoEncuestaChat[]
+}
+
+// Un voto por persona por encuesta (elegir de nuevo reemplaza el voto
+// anterior, igual que ReaccionMensajeChat) — de ahí el unique en
+// [encuestaId, miembroId] en vez de [opcionId, miembroId].
+model VotoEncuestaChat {
+  id         Int                @id @default(autoincrement())
+  encuestaId Int
+  encuesta   EncuestaChat       @relation(fields: [encuestaId], references: [id])
+  opcionId   Int
+  opcion     OpcionEncuestaChat @relation(fields: [opcionId], references: [id])
+  miembroId  Int
+  miembro    Miembro            @relation(fields: [miembroId], references: [id])
+  createdAt  DateTime           @default(now())
+
+  @@unique([encuestaId, miembroId])
 }
 
 // Fase 9: SOS / Emergencia (sección 5 del PDF). Solo una emergencia activa por miembro a la vez;

@@ -147,6 +147,11 @@ export class ChatService {
         autor: { select: { id: true, nombre: true, fotoUrl: true } },
         respuestaA: { include: { autor: { select: { nombre: true } } } },
         reacciones: { select: { miembroId: true, emoji: true } },
+        encuesta: {
+          include: {
+            opciones: { include: { votos: { select: { miembroId: true } } } },
+          },
+        },
       },
     });
 
@@ -172,7 +177,7 @@ export class ChatService {
       });
     }
 
-    return mensajes.map((m) => this.serializarMensaje(m));
+    return mensajes.map((m) => this.serializarMensaje(m, miembroId));
   }
 
   // Álbum: no es un dato nuevo a guardar, solo una vista filtrada de los
@@ -214,31 +219,42 @@ export class ChatService {
     }));
   }
 
-  private serializarMensaje(m: {
-    id: number;
-    sala: string;
-    autor: { id: number; nombre: string; fotoUrl: string | null };
-    texto: string;
-    referenciaTipo: string | null;
-    referenciaId: number | null;
-    createdAt: Date;
-    respuestaAId: number | null;
-    respuestaA: { texto: string; autor: { nombre: string } } | null;
-    reenviadoDeId: number | null;
-    adjuntoTipo: string | null;
-    adjuntoUrl: string | null;
-    adjuntoUbicacionNombre: string | null;
-    adjuntoUbicacionLat: number | null;
-    adjuntoUbicacionLon: number | null;
-    adjuntoRutaDistanciaKm: number | null;
-    adjuntoRutaDuracionSeg: number | null;
-    adjuntoRutaPuntos: string | null;
-    adjuntoArchivoNombre: string | null;
-    adjuntoArchivoTamanoKb: number | null;
-    adjuntoAudioDuracionSeg: number | null;
-    fijado: boolean;
-    reacciones: { miembroId: number; emoji: string }[];
-  }) {
+  private serializarMensaje(
+    m: {
+      id: number;
+      sala: string;
+      autor: { id: number; nombre: string; fotoUrl: string | null };
+      texto: string;
+      referenciaTipo: string | null;
+      referenciaId: number | null;
+      createdAt: Date;
+      respuestaAId: number | null;
+      respuestaA: { texto: string; autor: { nombre: string } } | null;
+      reenviadoDeId: number | null;
+      adjuntoTipo: string | null;
+      adjuntoUrl: string | null;
+      adjuntoUbicacionNombre: string | null;
+      adjuntoUbicacionLat: number | null;
+      adjuntoUbicacionLon: number | null;
+      adjuntoRutaDistanciaKm: number | null;
+      adjuntoRutaDuracionSeg: number | null;
+      adjuntoRutaPuntos: string | null;
+      adjuntoArchivoNombre: string | null;
+      adjuntoArchivoTamanoKb: number | null;
+      adjuntoAudioDuracionSeg: number | null;
+      fijado: boolean;
+      reacciones: { miembroId: number; emoji: string }[];
+      encuesta: {
+        id: number;
+        opciones: {
+          id: number;
+          texto: string;
+          votos: { miembroId: number }[];
+        }[];
+      } | null;
+    },
+    miembroId: number,
+  ) {
     return {
       id: m.id,
       sala: m.sala,
@@ -267,6 +283,24 @@ export class ChatService {
       adjuntoAudioDuracionSeg: m.adjuntoAudioDuracionSeg,
       fijado: m.fijado,
       reacciones: m.reacciones,
+      encuesta: m.encuesta
+        ? {
+            id: m.encuesta.id,
+            opciones: m.encuesta.opciones.map((o) => ({
+              id: o.id,
+              texto: o.texto,
+              votos: o.votos.length,
+            })),
+            totalVotos: m.encuesta.opciones.reduce(
+              (acc, o) => acc + o.votos.length,
+              0,
+            ),
+            miVotoOpcionId:
+              m.encuesta.opciones.find((o) =>
+                o.votos.some((v) => v.miembroId === miembroId),
+              )?.id ?? null,
+          }
+        : null,
     };
   }
 
@@ -339,6 +373,11 @@ export class ChatService {
         autor: { select: { id: true, nombre: true, fotoUrl: true } },
         respuestaA: { include: { autor: { select: { nombre: true } } } },
         reacciones: { select: { miembroId: true, emoji: true } },
+        encuesta: {
+          include: {
+            opciones: { include: { votos: { select: { miembroId: true } } } },
+          },
+        },
       },
     });
 
@@ -348,7 +387,7 @@ export class ChatService {
       update: { leidoHasta: mensaje.createdAt },
     });
 
-    const resultado = this.serializarMensaje(mensaje);
+    const resultado = this.serializarMensaje(mensaje, autorId);
     this.gateway.emitir(sala, 'chat:mensaje', resultado);
 
     // Si el destinatario ya está conectado en este preciso momento, se marca
@@ -454,6 +493,18 @@ export class ChatService {
       where: { mensajeId },
     });
     await this.prisma.mensajeChatOculto.deleteMany({ where: { mensajeId } });
+    const encuesta = await this.prisma.encuestaChat.findUnique({
+      where: { mensajeId },
+    });
+    if (encuesta) {
+      await this.prisma.votoEncuestaChat.deleteMany({
+        where: { encuestaId: encuesta.id },
+      });
+      await this.prisma.opcionEncuestaChat.deleteMany({
+        where: { encuestaId: encuesta.id },
+      });
+      await this.prisma.encuestaChat.delete({ where: { id: encuesta.id } });
+    }
     await this.prisma.mensajeChat.delete({ where: { id: mensajeId } });
 
     this.gateway.emitir(mensaje.sala, 'chat:mensaje-eliminado', {
@@ -533,6 +584,120 @@ export class ChatService {
     }));
   }
 
+  // Encuesta: solo en el chat grupal, cualquiera puede crearla. Se guarda
+  // como un MensajeChat normal (adjuntoTipo:"encuesta", pregunta = texto) con
+  // un EncuestaChat colgado — eliminarla es eliminarMensaje(modo:"todos")
+  // sobre ese mensaje, mismo permiso (autor o admin) que ya existe ahí.
+  async crearEncuesta(
+    sala: string,
+    autorId: number,
+    pregunta: string,
+    opciones: string[],
+  ) {
+    this.verificarAcceso(sala, autorId);
+    if (sala !== SALA_GRUPAL) {
+      throw new ForbiddenException(
+        'Las encuestas solo están disponibles en el chat grupal',
+      );
+    }
+
+    const preguntaLimpia = pregunta.trim();
+    const opcionesLimpias = opciones
+      .map((o) => o.trim())
+      .filter((o) => o.length > 0);
+    if (!preguntaLimpia) {
+      throw new BadRequestException('La encuesta necesita una pregunta');
+    }
+    if (opcionesLimpias.length < 2 || opcionesLimpias.length > 10) {
+      throw new BadRequestException('Elige entre 2 y 10 opciones');
+    }
+
+    const mensaje = await this.prisma.mensajeChat.create({
+      data: {
+        sala,
+        autorId,
+        texto: preguntaLimpia,
+        adjuntoTipo: 'encuesta',
+        encuesta: {
+          create: {
+            opciones: { create: opcionesLimpias.map((texto) => ({ texto })) },
+          },
+        },
+      },
+      include: {
+        autor: { select: { id: true, nombre: true, fotoUrl: true } },
+        respuestaA: { include: { autor: { select: { nombre: true } } } },
+        reacciones: { select: { miembroId: true, emoji: true } },
+        encuesta: {
+          include: {
+            opciones: { include: { votos: { select: { miembroId: true } } } },
+          },
+        },
+      },
+    });
+
+    await this.prisma.lecturaChat.upsert({
+      where: { miembroId_sala: { miembroId: autorId, sala } },
+      create: { miembroId: autorId, sala, leidoHasta: mensaje.createdAt },
+      update: { leidoHasta: mensaje.createdAt },
+    });
+
+    const resultado = this.serializarMensaje(mensaje, autorId);
+    this.gateway.emitir(sala, 'chat:mensaje', resultado);
+    return resultado;
+  }
+
+  async votarEncuesta(mensajeId: number, miembroId: number, opcionId: number) {
+    const mensaje = await this.prisma.mensajeChat.findUnique({
+      where: { id: mensajeId },
+      include: { encuesta: { include: { opciones: true } } },
+    });
+    if (!mensaje || !mensaje.encuesta) {
+      throw new NotFoundException('Encuesta no encontrada');
+    }
+    this.verificarAcceso(mensaje.sala, miembroId);
+
+    const opcionValida = mensaje.encuesta.opciones.some(
+      (o) => o.id === opcionId,
+    );
+    if (!opcionValida) {
+      throw new BadRequestException('Esa opción no pertenece a esta encuesta');
+    }
+
+    await this.prisma.votoEncuestaChat.upsert({
+      where: {
+        encuestaId_miembroId: { encuestaId: mensaje.encuesta.id, miembroId },
+      },
+      create: { encuestaId: mensaje.encuesta.id, opcionId, miembroId },
+      update: { opcionId },
+    });
+
+    const opcionesConVotos = await this.prisma.opcionEncuestaChat.findMany({
+      where: { encuestaId: mensaje.encuesta.id },
+      include: { votos: { select: { miembroId: true } } },
+    });
+    const resultadoOpciones = opcionesConVotos.map((o) => ({
+      id: o.id,
+      texto: o.texto,
+      votos: o.votos.length,
+    }));
+    const totalVotos = resultadoOpciones.reduce((acc, o) => acc + o.votos, 0);
+
+    this.gateway.emitir(mensaje.sala, 'chat:encuesta', {
+      mensajeId,
+      sala: mensaje.sala,
+      opciones: resultadoOpciones,
+      totalVotos,
+    });
+
+    return {
+      id: mensaje.encuesta.id,
+      opciones: resultadoOpciones,
+      totalVotos,
+      miVotoOpcionId: opcionId,
+    };
+  }
+
   // Borrado real (no "oculto para mí") de los mensajes que ya superaron los
   // DIAS_VIGENCIA_CHAT días — llamado por ChatLimpiezaScheduler una vez al
   // día. Mismo orden de borrado que eliminarMensaje() (limpiar referencias
@@ -560,6 +725,22 @@ export class ChatService {
     await this.prisma.mensajeChatOculto.deleteMany({
       where: { mensajeId: { in: ids } },
     });
+    const encuestas = await this.prisma.encuestaChat.findMany({
+      where: { mensajeId: { in: ids } },
+      select: { id: true },
+    });
+    if (encuestas.length > 0) {
+      const encuestaIds = encuestas.map((e) => e.id);
+      await this.prisma.votoEncuestaChat.deleteMany({
+        where: { encuestaId: { in: encuestaIds } },
+      });
+      await this.prisma.opcionEncuestaChat.deleteMany({
+        where: { encuestaId: { in: encuestaIds } },
+      });
+      await this.prisma.encuestaChat.deleteMany({
+        where: { id: { in: encuestaIds } },
+      });
+    }
     await this.prisma.mensajeChat.deleteMany({ where: { id: { in: ids } } });
 
     return ids.length;
@@ -578,6 +759,9 @@ export class ChatService {
     });
     if (!original) throw new NotFoundException('Mensaje no encontrado');
     this.verificarAcceso(original.sala, autorId);
+    if (original.adjuntoTipo === 'encuesta') {
+      throw new BadRequestException('No se puede reenviar una encuesta');
+    }
 
     const idsUnicos = [...new Set(destinatarioIds)].filter(
       (id) => id !== autorId,

@@ -16,6 +16,8 @@ import { ChatService } from './chat.service';
 import { MensajeDto } from './dto/mensaje.dto';
 import { ReaccionDto } from './dto/reaccion.dto';
 import { ReenviarDto } from './dto/reenviar.dto';
+import { CrearEncuestaDto } from './dto/crear-encuesta.dto';
+import { VotarEncuestaDto } from './dto/votar-encuesta.dto';
 
 interface RequestConUsuario {
   user: { id: number; rol: string };
@@ -99,6 +101,29 @@ export class ChatController {
       req.user.id,
       req.user.rol === 'admin',
     );
+  }
+
+  @Post('mensajes/:sala/encuesta')
+  crearEncuesta(
+    @Req() req: RequestConUsuario,
+    @Param('sala') sala: string,
+    @Body() dto: CrearEncuestaDto,
+  ) {
+    return this.chatService.crearEncuesta(
+      sala,
+      req.user.id,
+      dto.pregunta,
+      dto.opciones,
+    );
+  }
+
+  @Post('encuestas/:id/votar')
+  votarEncuesta(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: VotarEncuestaDto,
+  ) {
+    return this.chatService.votarEncuesta(id, req.user.id, dto.opcionId);
   }
 
   @Post('mensajes/:id/reaccion')
