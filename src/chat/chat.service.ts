@@ -141,24 +141,37 @@ export class ChatService {
     this.verificarAcceso(sala, miembroId);
     const limite = this.limiteVigencia(sala === SALA_GRUPAL);
 
-    const mensajes = await this.prisma.mensajeChat.findMany({
-      where: {
-        sala,
-        createdAt: { gte: limite },
-        ocultamientos: { none: { miembroId } },
-      },
-      orderBy: { createdAt: 'asc' },
-      include: {
-        autor: { select: { id: true, nombre: true, fotoUrl: true } },
-        respuestaA: { include: { autor: { select: { nombre: true } } } },
-        reacciones: { select: { miembroId: true, emoji: true } },
-        encuesta: {
-          include: {
-            opciones: { include: { votos: { select: { miembroId: true } } } },
+    const [mensajes, totalMiembros] = await Promise.all([
+      this.prisma.mensajeChat.findMany({
+        where: {
+          sala,
+          createdAt: { gte: limite },
+          ocultamientos: { none: { miembroId } },
+        },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          autor: { select: { id: true, nombre: true, fotoUrl: true } },
+          respuestaA: { include: { autor: { select: { nombre: true } } } },
+          reacciones: { select: { miembroId: true, emoji: true } },
+          encuesta: {
+            include: {
+              opciones: {
+                include: {
+                  votos: {
+                    select: {
+                      miembro: {
+                        select: { id: true, nombre: true, fotoUrl: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.miembro.count(),
+    ]);
 
     const lecturaPrevia = await this.prisma.lecturaChat.findUnique({
       where: { miembroId_sala: { miembroId, sala } },
@@ -182,7 +195,9 @@ export class ChatService {
       });
     }
 
-    return mensajes.map((m) => this.serializarMensaje(m, miembroId));
+    return mensajes.map((m) =>
+      this.serializarMensaje(m, miembroId, totalMiembros),
+    );
   }
 
   // Álbum: no es un dato nuevo a guardar, solo una vista filtrada de los
@@ -251,14 +266,18 @@ export class ChatService {
       reacciones: { miembroId: number; emoji: string }[];
       encuesta: {
         id: number;
+        anonima: boolean;
         opciones: {
           id: number;
           texto: string;
-          votos: { miembroId: number }[];
+          votos: {
+            miembro: { id: number; nombre: string; fotoUrl: string | null };
+          }[];
         }[];
       } | null;
     },
     miembroId: number,
+    totalMiembros: number,
   ) {
     return {
       id: m.id,
@@ -291,18 +310,23 @@ export class ChatService {
       encuesta: m.encuesta
         ? {
             id: m.encuesta.id,
+            anonima: m.encuesta.anonima,
             opciones: m.encuesta.opciones.map((o) => ({
               id: o.id,
               texto: o.texto,
               votos: o.votos.length,
+              votantes: m.encuesta!.anonima
+                ? []
+                : o.votos.map((v) => v.miembro),
             })),
             totalVotos: m.encuesta.opciones.reduce(
               (acc, o) => acc + o.votos.length,
               0,
             ),
+            totalMiembros,
             miVotoOpcionId:
               m.encuesta.opciones.find((o) =>
-                o.votos.some((v) => v.miembroId === miembroId),
+                o.votos.some((v) => v.miembro.id === miembroId),
               )?.id ?? null,
           }
         : null,
@@ -353,38 +377,51 @@ export class ChatService {
       }
     }
 
-    const mensaje = await this.prisma.mensajeChat.create({
-      data: {
-        sala,
-        autorId,
-        texto,
-        referenciaTipo: dto.referenciaTipo,
-        referenciaId: dto.referenciaId,
-        respuestaAId,
-        reenviadoDeId: reenviadoDeId ?? null,
-        adjuntoTipo: dto.adjuntoTipo,
-        adjuntoUrl: dto.adjuntoUrl,
-        adjuntoUbicacionNombre: dto.adjuntoUbicacionNombre,
-        adjuntoUbicacionLat: dto.adjuntoUbicacionLat,
-        adjuntoUbicacionLon: dto.adjuntoUbicacionLon,
-        adjuntoRutaDistanciaKm: dto.adjuntoRutaDistanciaKm,
-        adjuntoRutaDuracionSeg: dto.adjuntoRutaDuracionSeg,
-        adjuntoRutaPuntos: dto.adjuntoRutaPuntos,
-        adjuntoArchivoNombre: dto.adjuntoArchivoNombre,
-        adjuntoArchivoTamanoKb: dto.adjuntoArchivoTamanoKb,
-        adjuntoAudioDuracionSeg: dto.adjuntoAudioDuracionSeg,
-      },
-      include: {
-        autor: { select: { id: true, nombre: true, fotoUrl: true } },
-        respuestaA: { include: { autor: { select: { nombre: true } } } },
-        reacciones: { select: { miembroId: true, emoji: true } },
-        encuesta: {
-          include: {
-            opciones: { include: { votos: { select: { miembroId: true } } } },
+    const [mensaje, totalMiembros] = await Promise.all([
+      this.prisma.mensajeChat.create({
+        data: {
+          sala,
+          autorId,
+          texto,
+          referenciaTipo: dto.referenciaTipo,
+          referenciaId: dto.referenciaId,
+          respuestaAId,
+          reenviadoDeId: reenviadoDeId ?? null,
+          adjuntoTipo: dto.adjuntoTipo,
+          adjuntoUrl: dto.adjuntoUrl,
+          adjuntoUbicacionNombre: dto.adjuntoUbicacionNombre,
+          adjuntoUbicacionLat: dto.adjuntoUbicacionLat,
+          adjuntoUbicacionLon: dto.adjuntoUbicacionLon,
+          adjuntoRutaDistanciaKm: dto.adjuntoRutaDistanciaKm,
+          adjuntoRutaDuracionSeg: dto.adjuntoRutaDuracionSeg,
+          adjuntoRutaPuntos: dto.adjuntoRutaPuntos,
+          adjuntoArchivoNombre: dto.adjuntoArchivoNombre,
+          adjuntoArchivoTamanoKb: dto.adjuntoArchivoTamanoKb,
+          adjuntoAudioDuracionSeg: dto.adjuntoAudioDuracionSeg,
+        },
+        include: {
+          autor: { select: { id: true, nombre: true, fotoUrl: true } },
+          respuestaA: { include: { autor: { select: { nombre: true } } } },
+          reacciones: { select: { miembroId: true, emoji: true } },
+          encuesta: {
+            include: {
+              opciones: {
+                include: {
+                  votos: {
+                    select: {
+                      miembro: {
+                        select: { id: true, nombre: true, fotoUrl: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.miembro.count(),
+    ]);
 
     await this.prisma.lecturaChat.upsert({
       where: { miembroId_sala: { miembroId: autorId, sala } },
@@ -392,7 +429,7 @@ export class ChatService {
       update: { leidoHasta: mensaje.createdAt },
     });
 
-    const resultado = this.serializarMensaje(mensaje, autorId);
+    const resultado = this.serializarMensaje(mensaje, autorId, totalMiembros);
     this.gateway.emitir(sala, 'chat:mensaje', resultado);
 
     // Si el destinatario ya está conectado en este preciso momento, se marca
@@ -579,12 +616,14 @@ export class ChatService {
     const mensajes = await this.prisma.mensajeChat.findMany({
       where: { sala, fijado: true },
       orderBy: { fijadoEn: 'desc' },
-      include: { autor: { select: { nombre: true } } },
+      include: { autor: { select: { nombre: true, fotoUrl: true } } },
     });
     return mensajes.map((m) => ({
       id: m.id,
       texto: m.texto,
       autorNombre: m.autor.nombre,
+      autorFotoUrl: m.autor.fotoUrl,
+      createdAt: m.createdAt,
       adjuntoTipo: m.adjuntoTipo,
     }));
   }
@@ -598,6 +637,7 @@ export class ChatService {
     autorId: number,
     pregunta: string,
     opciones: string[],
+    anonima: boolean,
   ) {
     this.verificarAcceso(sala, autorId);
     if (sala !== SALA_GRUPAL) {
@@ -617,29 +657,43 @@ export class ChatService {
       throw new BadRequestException('Elige entre 2 y 10 opciones');
     }
 
-    const mensaje = await this.prisma.mensajeChat.create({
-      data: {
-        sala,
-        autorId,
-        texto: preguntaLimpia,
-        adjuntoTipo: 'encuesta',
-        encuesta: {
-          create: {
-            opciones: { create: opcionesLimpias.map((texto) => ({ texto })) },
+    const [mensaje, totalMiembros] = await Promise.all([
+      this.prisma.mensajeChat.create({
+        data: {
+          sala,
+          autorId,
+          texto: preguntaLimpia,
+          adjuntoTipo: 'encuesta',
+          encuesta: {
+            create: {
+              anonima,
+              opciones: { create: opcionesLimpias.map((texto) => ({ texto })) },
+            },
           },
         },
-      },
-      include: {
-        autor: { select: { id: true, nombre: true, fotoUrl: true } },
-        respuestaA: { include: { autor: { select: { nombre: true } } } },
-        reacciones: { select: { miembroId: true, emoji: true } },
-        encuesta: {
-          include: {
-            opciones: { include: { votos: { select: { miembroId: true } } } },
+        include: {
+          autor: { select: { id: true, nombre: true, fotoUrl: true } },
+          respuestaA: { include: { autor: { select: { nombre: true } } } },
+          reacciones: { select: { miembroId: true, emoji: true } },
+          encuesta: {
+            include: {
+              opciones: {
+                include: {
+                  votos: {
+                    select: {
+                      miembro: {
+                        select: { id: true, nombre: true, fotoUrl: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.miembro.count(),
+    ]);
 
     await this.prisma.lecturaChat.upsert({
       where: { miembroId_sala: { miembroId: autorId, sala } },
@@ -647,7 +701,7 @@ export class ChatService {
       update: { leidoHasta: mensaje.createdAt },
     });
 
-    const resultado = this.serializarMensaje(mensaje, autorId);
+    const resultado = this.serializarMensaje(mensaje, autorId, totalMiembros);
     this.gateway.emitir(sala, 'chat:mensaje', resultado);
     return resultado;
   }
@@ -677,14 +731,25 @@ export class ChatService {
       update: { opcionId },
     });
 
-    const opcionesConVotos = await this.prisma.opcionEncuestaChat.findMany({
-      where: { encuestaId: mensaje.encuesta.id },
-      include: { votos: { select: { miembroId: true } } },
-    });
+    const [opcionesConVotos, totalMiembros] = await Promise.all([
+      this.prisma.opcionEncuestaChat.findMany({
+        where: { encuestaId: mensaje.encuesta.id },
+        include: {
+          votos: {
+            select: {
+              miembro: { select: { id: true, nombre: true, fotoUrl: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.miembro.count(),
+    ]);
+    const anonima = mensaje.encuesta.anonima;
     const resultadoOpciones = opcionesConVotos.map((o) => ({
       id: o.id,
       texto: o.texto,
       votos: o.votos.length,
+      votantes: anonima ? [] : o.votos.map((v) => v.miembro),
     }));
     const totalVotos = resultadoOpciones.reduce((acc, o) => acc + o.votos, 0);
 
@@ -693,12 +758,15 @@ export class ChatService {
       sala: mensaje.sala,
       opciones: resultadoOpciones,
       totalVotos,
+      totalMiembros,
     });
 
     return {
       id: mensaje.encuesta.id,
+      anonima,
       opciones: resultadoOpciones,
       totalVotos,
+      totalMiembros,
       miVotoOpcionId: opcionId,
     };
   }

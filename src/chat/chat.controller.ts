@@ -114,6 +114,7 @@ export class ChatController {
       req.user.id,
       dto.pregunta,
       dto.opciones,
+      dto.anonima ?? false,
     );
   }
 

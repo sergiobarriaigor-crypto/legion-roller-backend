@@ -2,6 +2,8 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
+  IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
@@ -17,4 +19,8 @@ export class CrearEncuestaDto {
   @IsString({ each: true })
   @MaxLength(120, { each: true })
   opciones!: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  anonima?: boolean;
 }

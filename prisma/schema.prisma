@@ -574,6 +574,9 @@ model EncuestaChat {
   mensajeId Int         @unique
   mensaje   MensajeChat @relation(fields: [mensajeId], references: [id])
   createdAt DateTime    @default(now())
+  // Si es true, nadie puede ver quién votó por cada alternativa (solo
+  // conteos/porcentajes) — elegido por el autor al crearla, no cambia después.
+  anonima   Boolean     @default(false)
 
   opciones OpcionEncuestaChat[]
   votos    VotoEncuestaChat[]
