@@ -87,6 +87,20 @@ export class ChatController {
     );
   }
 
+  @Get('mensajes/:sala/fijados')
+  mensajesFijados(@Req() req: RequestConUsuario, @Param('sala') sala: string) {
+    return this.chatService.mensajesFijados(sala, req.user.id);
+  }
+
+  @Post('mensajes/:id/fijar')
+  fijar(@Req() req: RequestConUsuario, @Param('id', ParseIntPipe) id: number) {
+    return this.chatService.fijarMensaje(
+      id,
+      req.user.id,
+      req.user.rol === 'admin',
+    );
+  }
+
   @Post('mensajes/:id/reaccion')
   reaccionar(
     @Req() req: RequestConUsuario,

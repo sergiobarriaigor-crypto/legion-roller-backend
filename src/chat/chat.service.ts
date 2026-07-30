@@ -13,6 +13,8 @@ const SALA_GRUPAL = 'grupal';
 const DIAS_VIGENCIA_CHAT = 30;
 const PATRON_SALA_INDIVIDUAL = /^dm-(\d+)-(\d+)$/;
 const MAX_REENVIO_DESTINATARIOS = 5;
+const MAX_FIJADOS_GRUPAL = 5;
+const MAX_FIJADOS_DM = 1;
 
 // Duplicada localmente (no importada de mapa.service.ts) — mismo criterio ya
 // establecido en el proyecto de no compartir helpers pequeños entre módulos.
@@ -234,6 +236,7 @@ export class ChatService {
     adjuntoArchivoNombre: string | null;
     adjuntoArchivoTamanoKb: number | null;
     adjuntoAudioDuracionSeg: number | null;
+    fijado: boolean;
     reacciones: { miembroId: number; emoji: string }[];
   }) {
     return {
@@ -262,6 +265,7 @@ export class ChatService {
       adjuntoArchivoNombre: m.adjuntoArchivoNombre,
       adjuntoArchivoTamanoKb: m.adjuntoArchivoTamanoKb,
       adjuntoAudioDuracionSeg: m.adjuntoAudioDuracionSeg,
+      fijado: m.fijado,
       reacciones: m.reacciones,
     };
   }
@@ -457,6 +461,76 @@ export class ChatService {
       sala: mensaje.sala,
     });
     return { ok: true };
+  }
+
+  // Fijar/desfijar (toggle). En el grupal, hasta MAX_FIJADOS_GRUPAL, solo el
+  // admin global; en un DM, hasta MAX_FIJADOS_DM (1), cualquiera de los 2
+  // participantes (ya garantizado por verificarAcceso). Desfijar no tiene
+  // tope que validar, así que se resuelve antes de revisar el cupo.
+  async fijarMensaje(mensajeId: number, miembroId: number, esAdmin: boolean) {
+    const mensaje = await this.prisma.mensajeChat.findUnique({
+      where: { id: mensajeId },
+    });
+    if (!mensaje) throw new NotFoundException('Mensaje no encontrado');
+    this.verificarAcceso(mensaje.sala, miembroId);
+
+    const esGrupal = mensaje.sala === SALA_GRUPAL;
+    if (esGrupal && !esAdmin) {
+      throw new ForbiddenException(
+        'Solo el admin puede fijar mensajes en el chat grupal',
+      );
+    }
+
+    if (mensaje.fijado) {
+      await this.prisma.mensajeChat.update({
+        where: { id: mensajeId },
+        data: { fijado: false, fijadoEn: null },
+      });
+      this.gateway.emitir(mensaje.sala, 'chat:fijado', {
+        mensajeId,
+        sala: mensaje.sala,
+        fijado: false,
+      });
+      return { fijado: false };
+    }
+
+    const max = esGrupal ? MAX_FIJADOS_GRUPAL : MAX_FIJADOS_DM;
+    const cantidadActual = await this.prisma.mensajeChat.count({
+      where: { sala: mensaje.sala, fijado: true },
+    });
+    if (cantidadActual >= max) {
+      throw new BadRequestException(
+        esGrupal
+          ? `Ya hay ${MAX_FIJADOS_GRUPAL} mensajes fijados. Desfija uno para poder fijar este.`
+          : 'Ya hay un mensaje fijado en esta conversación. Desfíjalo para poder fijar este.',
+      );
+    }
+
+    await this.prisma.mensajeChat.update({
+      where: { id: mensajeId },
+      data: { fijado: true, fijadoEn: new Date() },
+    });
+    this.gateway.emitir(mensaje.sala, 'chat:fijado', {
+      mensajeId,
+      sala: mensaje.sala,
+      fijado: true,
+    });
+    return { fijado: true };
+  }
+
+  async mensajesFijados(sala: string, miembroId: number) {
+    this.verificarAcceso(sala, miembroId);
+    const mensajes = await this.prisma.mensajeChat.findMany({
+      where: { sala, fijado: true },
+      orderBy: { fijadoEn: 'desc' },
+      include: { autor: { select: { nombre: true } } },
+    });
+    return mensajes.map((m) => ({
+      id: m.id,
+      texto: m.texto,
+      autorNombre: m.autor.nombre,
+      adjuntoTipo: m.adjuntoTipo,
+    }));
   }
 
   // Borrado real (no "oculto para mí") de los mensajes que ya superaron los

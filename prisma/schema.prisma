@@ -501,6 +501,13 @@ model MensajeChat {
   adjuntoArchivoTamanoKb   Int? // "archivo"
   adjuntoAudioDuracionSeg  Int? // "audio"
 
+  // Ajuste: mensaje fijado. En el grupal, hasta MAX_FIJADOS_GRUPAL (5), solo
+  // el admin global puede fijar/desfijar; en un DM, hasta 1, cualquiera de
+  // los 2 participantes. `fijadoEn` (no `createdAt`) ordena la lista de
+  // fijados por cuándo se fijaron, no por cuándo se escribieron.
+  fijado   Boolean   @default(false)
+  fijadoEn DateTime?
+
   reacciones    ReaccionMensajeChat[]
   ocultamientos MensajeChatOculto[]
 

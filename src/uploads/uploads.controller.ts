@@ -49,11 +49,12 @@ export class UploadsController {
         if (
           !file.mimetype.startsWith('image/') &&
           !file.mimetype.startsWith('video/') &&
+          !file.mimetype.startsWith('audio/') &&
           !MIMETYPES_DOCUMENTO.includes(file.mimetype)
         ) {
           cb(
             new BadRequestException(
-              'Solo se permiten imágenes, videos, PDF o Word/Excel',
+              'Solo se permiten imágenes, videos, audio, PDF o Word/Excel',
             ),
             false,
           );
