@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ChatService } from './chat.service';
 
-// Borra en forma real (no solo oculta) los mensajes de chat que superaron
-// los 30 días de vigencia — mismo patrón de cron ya usado por
-// RecordatoriosScheduler (notificaciones-push).
+// Borra en forma real (no solo oculta) los mensajes de chat que superaron su
+// vigencia (15 días en el grupal, 30 en un DM) — mismo patrón de cron ya
+// usado por RecordatoriosScheduler (notificaciones-push).
 @Injectable()
 export class ChatLimpiezaScheduler {
   private readonly logger = new Logger(ChatLimpiezaScheduler.name);

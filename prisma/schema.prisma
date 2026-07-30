@@ -456,7 +456,9 @@ model ReconocimientoRecibido {
 
 // Fase 8: chat grupal e individual (sección 9 y 11 del PDF).
 // "sala" = "grupal" (chat único general) o "dm-{idMenor}-{idMayor}" para chats 1 a 1.
-// Vigencia de 7 días (DIAS_VIGENCIA_CHAT), calculada en el backend comparando createdAt.
+// Vigencia diferenciada por sala: DIAS_VIGENCIA_GRUPAL (15 días) para el
+// grupal, DIAS_VIGENCIA_CHAT (30 días) para un DM — calculada en el backend
+// comparando createdAt.
 model MensajeChat {
   id             Int      @id @default(autoincrement())
   sala           String

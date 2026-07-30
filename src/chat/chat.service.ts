@@ -10,6 +10,9 @@ import { ChatGateway } from './chat.gateway';
 import { ChatPresenceService } from './chat-presence.service';
 
 const SALA_GRUPAL = 'grupal';
+// Ajuste: vigencia diferenciada — el grupal se purga más seguido (mucho más
+// volumen) que un DM, que conserva el criterio original.
+const DIAS_VIGENCIA_GRUPAL = 15;
 const DIAS_VIGENCIA_CHAT = 30;
 const PATRON_SALA_INDIVIDUAL = /^dm-(\d+)-(\d+)$/;
 const MAX_REENVIO_DESTINATARIOS = 5;
@@ -47,17 +50,19 @@ export class ChatService {
     }
   }
 
-  private limiteVigencia() {
-    return new Date(Date.now() - DIAS_VIGENCIA_CHAT * 24 * 60 * 60 * 1000);
+  private limiteVigencia(esGrupal: boolean) {
+    const dias = esGrupal ? DIAS_VIGENCIA_GRUPAL : DIAS_VIGENCIA_CHAT;
+    return new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
   }
 
   async conversaciones(miembroId: number) {
-    const limite = this.limiteVigencia();
+    const limiteGrupal = this.limiteVigencia(true);
+    const limiteDm = this.limiteVigencia(false);
 
-    const grupal = await this.resumenSala(SALA_GRUPAL, miembroId, limite);
+    const grupal = await this.resumenSala(SALA_GRUPAL, miembroId, limiteGrupal);
 
     const salasIndividuales = await this.prisma.mensajeChat.findMany({
-      where: { sala: { startsWith: 'dm-' }, createdAt: { gte: limite } },
+      where: { sala: { startsWith: 'dm-' }, createdAt: { gte: limiteDm } },
       distinct: ['sala'],
       select: { sala: true },
     });
@@ -78,7 +83,7 @@ export class ChatService {
         where: { id: otroId },
         select: { nombre: true, fotoUrl: true },
       });
-      const resumen = await this.resumenSala(sala, miembroId, limite);
+      const resumen = await this.resumenSala(sala, miembroId, limiteDm);
       individuales.push({
         ...resumen,
         otroMiembroId: otroId,
@@ -134,7 +139,7 @@ export class ChatService {
 
   async mensajes(sala: string, miembroId: number) {
     this.verificarAcceso(sala, miembroId);
-    const limite = this.limiteVigencia();
+    const limite = this.limiteVigencia(sala === SALA_GRUPAL);
 
     const mensajes = await this.prisma.mensajeChat.findMany({
       where: {
@@ -189,7 +194,7 @@ export class ChatService {
     tipo: 'foto' | 'video' | 'archivo',
   ) {
     this.verificarAcceso(sala, miembroId);
-    const limite = this.limiteVigencia();
+    const limite = this.limiteVigencia(sala === SALA_GRUPAL);
 
     const mensajes = await this.prisma.mensajeChat.findMany({
       where: {
@@ -698,14 +703,21 @@ export class ChatService {
     };
   }
 
-  // Borrado real (no "oculto para mí") de los mensajes que ya superaron los
-  // DIAS_VIGENCIA_CHAT días — llamado por ChatLimpiezaScheduler una vez al
-  // día. Mismo orden de borrado que eliminarMensaje() (limpiar referencias
-  // antes de borrar), pero en lote por antigüedad en vez de por id puntual.
+  // Borrado real (no "oculto para mí") de los mensajes que ya superaron su
+  // vigencia — DIAS_VIGENCIA_GRUPAL para el grupal, DIAS_VIGENCIA_CHAT para
+  // un DM — llamado por ChatLimpiezaScheduler una vez al día. Mismo orden de
+  // borrado que eliminarMensaje() (limpiar referencias antes de borrar), pero
+  // en lote por antigüedad en vez de por id puntual.
   async purgarMensajesVencidos(): Promise<number> {
-    const limite = this.limiteVigencia();
+    const limiteGrupal = this.limiteVigencia(true);
+    const limiteDm = this.limiteVigencia(false);
     const vencidos = await this.prisma.mensajeChat.findMany({
-      where: { createdAt: { lt: limite } },
+      where: {
+        OR: [
+          { sala: SALA_GRUPAL, createdAt: { lt: limiteGrupal } },
+          { sala: { not: SALA_GRUPAL }, createdAt: { lt: limiteDm } },
+        ],
+      },
       select: { id: true },
     });
     if (vencidos.length === 0) return 0;
@@ -860,7 +872,9 @@ export class ChatService {
   // DM por participante, así que se traen todos los mensajes de tipo "post" o
   // "emprendedor" no míos y se filtra en memoria cuáles salas me incluyen.
   async compartidosSinLeer(miembroId: number) {
-    const limite = this.limiteVigencia();
+    // Esta consulta ya está acotada a salas "dm-*" más abajo, así que siempre
+    // usa la vigencia de DM.
+    const limite = this.limiteVigencia(false);
 
     const mensajes = await this.prisma.mensajeChat.findMany({
       where: {
