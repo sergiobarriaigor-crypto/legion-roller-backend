@@ -164,8 +164,13 @@ export class ClimaService {
     const datos = (await res.json()) as RespuestaOpenMeteo;
 
     const { icono, descripcion } = mapearCodigo(datos.current.weather_code);
+    // current.time viene con minutos (ej. "10:15", intervalo de 15 min),
+    // pero hourly.time solo tiene marcas en punto ("10:00") — comparar tal
+    // cual nunca coincidía y dejaba proximasHoras siempre vacío. Se redondea
+    // hacia abajo a la hora en punto antes de buscar el índice.
+    const horaActualEnPunto = `${datos.current.time.slice(0, 13)}:00`;
     const indiceHoraActual = datos.hourly.time.findIndex(
-      (t) => t === datos.current.time,
+      (t) => t === horaActualEnPunto,
     );
     const probabilidadLluviaActual =
       indiceHoraActual >= 0
