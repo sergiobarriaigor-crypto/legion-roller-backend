@@ -638,6 +638,13 @@ model Historia {
   // girables, estilo Instagram) — array de {url,x,y,escala,rotacion} como
   // JSON en texto, mismo criterio opaco que textoEstilo.
   fotosSticker String?
+  // Pista del catálogo propio de la app (archivo estático servido por el
+  // frontend, ej. "/musica/fiesta/01-nombre.mp3") — no es contenido subido
+  // por el usuario, por eso es solo una ruta relativa, no una URL de
+  // /uploads. musicaNombre se guarda aparte para no depender del catálogo
+  // vigente al mostrar historias viejas si una pista se retira despues.
+  musicaUrl    String?
+  musicaNombre String?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
   createdAt DateTime @default(now())
 

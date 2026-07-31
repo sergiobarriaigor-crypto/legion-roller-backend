@@ -53,6 +53,17 @@ export class CrearHistoriaDto {
   @IsString()
   fotosSticker?: string;
 
+  // Ruta relativa a una pista del catálogo propio de la app (no una URL de
+  // /uploads, por eso no usa @IsUrl) — ej. "/musica/fiesta/01-nombre.mp3".
+  @IsOptional()
+  @IsString()
+  musicaUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  musicaNombre?: string;
+
   @IsOptional()
   @IsString()
   ubicacion?: string;
