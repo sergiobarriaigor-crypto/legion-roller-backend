@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClimaService } from './clima.service';
 
@@ -8,7 +8,7 @@ export class ClimaController {
   constructor(private climaService: ClimaService) {}
 
   @Get()
-  obtener() {
-    return this.climaService.obtenerTodas();
+  obtener(@Query('lat') lat: string, @Query('lon') lon: string) {
+    return this.climaService.obtener(Number(lat), Number(lon));
   }
 }
