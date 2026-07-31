@@ -5,6 +5,7 @@ export interface HoraClima {
   temperatura: number;
   icono: string;
   probabilidadLluvia: number;
+  vientoVelocidad: number;
 }
 
 export interface DiaClima {
@@ -103,6 +104,7 @@ interface RespuestaOpenMeteo {
     temperature_2m: number[];
     precipitation_probability: number[];
     weather_code: number[];
+    wind_speed_10m: number[];
   };
   daily: {
     time: string[];
@@ -152,7 +154,7 @@ export class ClimaService {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m` +
-      `&hourly=temperature_2m,precipitation_probability,weather_code` +
+      `&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m` +
       `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
       `&timezone=auto&past_days=${DIAS_HISTORIAL}&forecast_days=${DIAS_PRONOSTICO + 1}`;
     const res = await fetch(url);
@@ -184,6 +186,7 @@ export class ClimaService {
         temperatura: Math.round(datos.hourly.temperature_2m[idx]),
         icono: mapearCodigo(datos.hourly.weather_code[idx]).icono,
         probabilidadLluvia: datos.hourly.precipitation_probability[idx],
+        vientoVelocidad: Math.round(datos.hourly.wind_speed_10m[idx]),
       };
     });
 
