@@ -47,6 +47,12 @@ export class CrearHistoriaDto {
   @IsString()
   textoEstilo?: string;
 
+  // JSON opaco: array de {url,x,y,escala,rotacion} de fotos "Polaroid"
+  // pegadas sobre la imagen — mismo criterio que textoEstilo.
+  @IsOptional()
+  @IsString()
+  fotosSticker?: string;
+
   @IsOptional()
   @IsString()
   ubicacion?: string;

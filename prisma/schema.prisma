@@ -634,6 +634,10 @@ model Historia {
   // la imagen, como JSON en texto (mismo patrón que "puntos" en Recorrido) —
   // opaco para el backend, solo el frontend lo arma/interpreta.
   textoEstilo String?
+  // Fotos "Polaroid" pegadas sobre la imagen (arrastrables/pellizcables/
+  // girables, estilo Instagram) — array de {url,x,y,escala,rotacion} como
+  // JSON en texto, mismo criterio opaco que textoEstilo.
+  fotosSticker String?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
   createdAt DateTime @default(now())
 

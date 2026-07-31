@@ -187,6 +187,7 @@ export class HistoriasService {
             mediaUrl: h.mediaUrl,
             texto: h.texto,
             textoEstilo: h.textoEstilo,
+            fotosSticker: h.fotosSticker,
             ubicacion: h.ubicacion,
             menciones: h.menciones.map((m) => ({
               miembroId: m.miembroId,
