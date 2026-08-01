@@ -4,6 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { MensajeDto } from './dto/mensaje.dto';
 import { ChatGateway } from './chat.gateway';
@@ -494,6 +496,41 @@ export class ChatService {
     return { emoji: emojiFinal };
   }
 
+  // Convierte la URL pública (http://host/uploads/archivo.jpg) devuelta por
+  // UploadsController a la ruta real en disco, usando el mismo directorio
+  // ('uploads' bajo process.cwd()) que uploads.controller.ts y main.ts
+  // (useStaticAssets) ya usan para guardar/servir esos archivos.
+  private rutaArchivoAdjunto(adjuntoUrl: string): string | null {
+    const prefijo = '/uploads/';
+    let pathname: string;
+    try {
+      pathname = new URL(adjuntoUrl).pathname;
+    } catch {
+      return null;
+    }
+    if (!pathname.startsWith(prefijo)) return null;
+    const nombreArchivo = pathname.slice(prefijo.length);
+    if (!nombreArchivo || nombreArchivo.includes('/')) return null;
+    return join(process.cwd(), 'uploads', nombreArchivo);
+  }
+
+  // Un mensaje reenviado copia adjuntoUrl a su propia fila (reenviarMensaje),
+  // así que 2 mensajes distintos pueden apuntar al mismo archivo físico. Solo
+  // se borra el archivo cuando, tras el borrado en BD, ya ningún mensaje vivo
+  // (original ni reenviado) lo sigue referenciando.
+  private async borrarArchivoSiNoSeUsa(
+    adjuntoUrl: string | null,
+  ): Promise<void> {
+    if (!adjuntoUrl) return;
+    const enUso = await this.prisma.mensajeChat.count({
+      where: { adjuntoUrl },
+    });
+    if (enUso > 0) return;
+    const ruta = this.rutaArchivoAdjunto(adjuntoUrl);
+    if (!ruta) return;
+    await fs.unlink(ruta).catch(() => {});
+  }
+
   async eliminarMensaje(
     mensajeId: number,
     miembroId: number,
@@ -548,6 +585,7 @@ export class ChatService {
       await this.prisma.encuestaChat.delete({ where: { id: encuesta.id } });
     }
     await this.prisma.mensajeChat.delete({ where: { id: mensajeId } });
+    await this.borrarArchivoSiNoSeUsa(mensaje.adjuntoUrl);
 
     this.gateway.emitir(mensaje.sala, 'chat:mensaje-eliminado', {
       mensajeId,
@@ -786,11 +824,16 @@ export class ChatService {
           { sala: { not: SALA_GRUPAL }, createdAt: { lt: limiteDm } },
         ],
       },
-      select: { id: true },
+      select: { id: true, adjuntoUrl: true },
     });
     if (vencidos.length === 0) return 0;
 
     const ids = vencidos.map((m) => m.id);
+    const urlsAdjuntos = [
+      ...new Set(
+        vencidos.map((m) => m.adjuntoUrl).filter((url): url is string => !!url),
+      ),
+    ];
     await this.prisma.mensajeChat.updateMany({
       where: { respuestaAId: { in: ids } },
       data: { respuestaAId: null },
@@ -822,6 +865,9 @@ export class ChatService {
       });
     }
     await this.prisma.mensajeChat.deleteMany({ where: { id: { in: ids } } });
+    for (const url of urlsAdjuntos) {
+      await this.borrarArchivoSiNoSeUsa(url);
+    }
 
     return ids.length;
   }
