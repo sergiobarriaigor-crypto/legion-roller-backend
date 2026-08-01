@@ -645,6 +645,11 @@ model Historia {
   // vigente al mostrar historias viejas si una pista se retira despues.
   musicaUrl    String?
   musicaNombre String?
+  // Segundo desde el que empieza a sonar la pista dentro de la historia,
+  // elegido en el editor cuando la canción dura más que la historia (ver
+  // SelectorInicioMusica en el frontend) — null/0 significa "desde el
+  // principio", igual que las historias creadas antes de este campo.
+  musicaInicioSeg Float?
   ubicacion String? // nombre de sector (sectorMasCercano), opcional
   createdAt DateTime @default(now())
 

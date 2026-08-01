@@ -190,6 +190,7 @@ export class HistoriasService {
             fotosSticker: h.fotosSticker,
             musicaUrl: h.musicaUrl,
             musicaNombre: h.musicaNombre,
+            musicaInicioSeg: h.musicaInicioSeg,
             ubicacion: h.ubicacion,
             menciones: h.menciones.map((m) => ({
               miembroId: m.miembroId,

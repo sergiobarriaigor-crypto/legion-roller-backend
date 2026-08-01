@@ -64,6 +64,13 @@ export class CrearHistoriaDto {
   @MaxLength(120)
   musicaNombre?: string;
 
+  // Segundo desde el que arranca la pista dentro de la historia (elegido en
+  // el editor cuando la canción dura más que la historia) — undefined/0
+  // significa desde el principio.
+  @IsOptional()
+  @IsNumber()
+  musicaInicioSeg?: number;
+
   @IsOptional()
   @IsString()
   ubicacion?: string;
