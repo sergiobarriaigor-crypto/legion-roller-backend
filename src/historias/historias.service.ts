@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearHistoriaDto } from './dto/crear-historia.dto';
 import { HistoriasGateway } from './historias.gateway';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const HORAS_VIGENCIA_HISTORIA = 24;
 const MAX_HISTORIAS_ACTIVAS = 10;
@@ -418,6 +419,29 @@ export class HistoriasService {
     return { vista: true };
   }
 
+  // mediaUrl siempre apunta a /uploads/; fotosSticker es un JSON opaco de
+  // {url,x,y,escala,rotacion}[] con más fotos subidas aparte. musicaUrl NO
+  // se incluye: es una pista del catálogo propio en /public/musica, no un
+  // archivo subido por el usuario (borrarArchivoSubido la ignora igual por
+  // no ser /uploads/, pero mejor ni pasarla).
+  private urlsArchivosHistoria(historia: {
+    mediaUrl: string;
+    fotosSticker: string | null;
+  }): string[] {
+    const urls = [historia.mediaUrl];
+    if (historia.fotosSticker) {
+      try {
+        const stickers = JSON.parse(historia.fotosSticker) as {
+          url?: string;
+        }[];
+        for (const s of stickers) if (s?.url) urls.push(s.url);
+      } catch {
+        // fotosSticker corrupto/vacío: se ignora, no bloquea el borrado
+      }
+    }
+    return urls;
+  }
+
   async eliminar(id: number, miembroId: number, rol: string) {
     const historia = await this.obtenerOFallar(id);
     if (historia.autorId !== miembroId && rol !== 'admin') {
@@ -433,7 +457,47 @@ export class HistoriasService {
     });
     await this.prisma.ecoHistoria.deleteMany({ where: { historiaId: id } });
     await this.prisma.historia.delete({ where: { id } });
+    for (const url of this.urlsArchivosHistoria(historia)) {
+      await borrarArchivoSubido(url);
+    }
     return { mensaje: 'Historia eliminada' };
+  }
+
+  // Borrado real (no solo el filtro de vigencia que ya aplica listarAgrupadas)
+  // de las historias que superaron HORAS_VIGENCIA_HISTORIA — llamado por
+  // HistoriasLimpiezaScheduler una vez al día, mismo patrón que
+  // ChatService.purgarMensajesVencidos().
+  async purgarHistoriasVencidas(): Promise<number> {
+    const vencidas = await this.prisma.historia.findMany({
+      where: { createdAt: { lt: this.limiteVigencia() } },
+      select: { id: true, mediaUrl: true, fotosSticker: true },
+    });
+    if (vencidas.length === 0) return 0;
+
+    const ids = vencidas.map((h) => h.id);
+    await this.prisma.vistaHistoria.deleteMany({
+      where: { historiaId: { in: ids } },
+    });
+    await this.prisma.reaccionHistoria.deleteMany({
+      where: { historiaId: { in: ids } },
+    });
+    await this.prisma.mencionHistoria.deleteMany({
+      where: { historiaId: { in: ids } },
+    });
+    await this.prisma.comentarioHistoria.deleteMany({
+      where: { historiaId: { in: ids } },
+    });
+    await this.prisma.ecoHistoria.deleteMany({
+      where: { historiaId: { in: ids } },
+    });
+    await this.prisma.historia.deleteMany({ where: { id: { in: ids } } });
+
+    for (const historia of vencidas) {
+      for (const url of this.urlsArchivosHistoria(historia)) {
+        await borrarArchivoSubido(url);
+      }
+    }
+    return ids.length;
   }
 
   // El corazón de Legión Roller — un solo tipo de reacción, mismo patrón
@@ -623,7 +687,10 @@ export class HistoriasService {
       where: {
         leida: false,
         miembroId: { not: miembroId },
-        historia: { autorId: miembroId, createdAt: { gte: this.limiteVigencia() } },
+        historia: {
+          autorId: miembroId,
+          createdAt: { gte: this.limiteVigencia() },
+        },
       },
       orderBy: { createdAt: 'desc' },
       include: { miembro: { select: { nombre: true, fotoUrl: true } } },
@@ -664,7 +731,8 @@ export class HistoriasService {
     });
     const autorizado =
       comentario?.respuestaA?.autorId === miembroId ||
-      (comentario?.respuestaAId === null && comentario?.historia.autorId === miembroId);
+      (comentario?.respuestaAId === null &&
+        comentario?.historia.autorId === miembroId);
     if (!comentario || !autorizado) {
       throw new ForbiddenException('No puedes marcar esta notificación');
     }

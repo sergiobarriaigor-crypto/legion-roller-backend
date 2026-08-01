@@ -4,12 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { MensajeDto } from './dto/mensaje.dto';
 import { ChatGateway } from './chat.gateway';
 import { ChatPresenceService } from './chat-presence.service';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const SALA_GRUPAL = 'grupal';
 // Ajuste: vigencia diferenciada — el grupal se purga más seguido (mucho más
@@ -496,24 +495,6 @@ export class ChatService {
     return { emoji: emojiFinal };
   }
 
-  // Convierte la URL pública (http://host/uploads/archivo.jpg) devuelta por
-  // UploadsController a la ruta real en disco, usando el mismo directorio
-  // ('uploads' bajo process.cwd()) que uploads.controller.ts y main.ts
-  // (useStaticAssets) ya usan para guardar/servir esos archivos.
-  private rutaArchivoAdjunto(adjuntoUrl: string): string | null {
-    const prefijo = '/uploads/';
-    let pathname: string;
-    try {
-      pathname = new URL(adjuntoUrl).pathname;
-    } catch {
-      return null;
-    }
-    if (!pathname.startsWith(prefijo)) return null;
-    const nombreArchivo = pathname.slice(prefijo.length);
-    if (!nombreArchivo || nombreArchivo.includes('/')) return null;
-    return join(process.cwd(), 'uploads', nombreArchivo);
-  }
-
   // Un mensaje reenviado copia adjuntoUrl a su propia fila (reenviarMensaje),
   // así que 2 mensajes distintos pueden apuntar al mismo archivo físico. Solo
   // se borra el archivo cuando, tras el borrado en BD, ya ningún mensaje vivo
@@ -526,9 +507,7 @@ export class ChatService {
       where: { adjuntoUrl },
     });
     if (enUso > 0) return;
-    const ruta = this.rutaArchivoAdjunto(adjuntoUrl);
-    if (!ruta) return;
-    await fs.unlink(ruta).catch(() => {});
+    await borrarArchivoSubido(adjuntoUrl);
   }
 
   async eliminarMensaje(

@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from '../chat/chat.service';
 import { FichaEmprendedorDto } from './dto/ficha-emprendedor.dto';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const MAX_DESTINATARIOS_COMPARTIR = 5;
 
@@ -85,7 +86,9 @@ export class EmprendedoresService {
     // el resto conserva su orden de siempre (más recientes primero — sort es
     // estable, así que el orderBy de arriba se preserva dentro de cada grupo).
     const ordenadas = [...fichas].sort(
-      (a, b) => (a.miembro.rol === 'admin' ? 0 : 1) - (b.miembro.rol === 'admin' ? 0 : 1),
+      (a, b) =>
+        (a.miembro.rol === 'admin' ? 0 : 1) -
+        (b.miembro.rol === 'admin' ? 0 : 1),
     );
     return ordenadas.map((f) => this.formatear(f));
   }
@@ -479,7 +482,15 @@ export class EmprendedoresService {
     await this.prisma.reaccionEmprendedor.deleteMany({
       where: { emprendedorId: id },
     });
-    await this.prisma.emprendedor.delete({ where: { id } });
+    const ficha = await this.prisma.emprendedor.delete({ where: { id } });
+    if (ficha.fotos) {
+      try {
+        const urls = JSON.parse(ficha.fotos) as string[];
+        for (const url of urls) await borrarArchivoSubido(url);
+      } catch {
+        // fotos corrupto/vacío: se ignora, no bloquea el borrado
+      }
+    }
   }
 
   private async obtenerOFallar(id: number) {

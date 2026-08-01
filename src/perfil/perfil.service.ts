@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Miembro } from '../../generated/prisma/client';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const HORAS_ESTADO = 8;
 const DIAS_VIGENCIA_RECO = 30;
@@ -161,18 +162,33 @@ export class PerfilService {
   }
 
   async setFoto(miembroId: number, fotoUrl: string) {
+    const anterior = await this.prisma.miembro.findUnique({
+      where: { id: miembroId },
+      select: { fotoUrl: true },
+    });
     await this.prisma.miembro.update({
       where: { id: miembroId },
       data: { fotoUrl },
     });
+    // update() devuelve el estado NUEVO, por eso el valor viejo se lee antes
+    // — si no se borra acá, el archivo anterior queda huérfano en cada
+    // cambio de foto de perfil.
+    if (anterior?.fotoUrl && anterior.fotoUrl !== fotoUrl) {
+      await borrarArchivoSubido(anterior.fotoUrl);
+    }
     return { fotoUrl };
   }
 
   async quitarFoto(miembroId: number) {
+    const anterior = await this.prisma.miembro.findUnique({
+      where: { id: miembroId },
+      select: { fotoUrl: true },
+    });
     await this.prisma.miembro.update({
       where: { id: miembroId },
       data: { fotoUrl: null },
     });
+    await borrarArchivoSubido(anterior?.fotoUrl ?? null);
     return { mensaje: 'Foto de perfil eliminada' };
   }
 
@@ -238,6 +254,7 @@ export class PerfilService {
     }
     await this.prisma.reaccionFotoGaleria.deleteMany({ where: { fotoId } });
     await this.prisma.fotoGaleria.delete({ where: { id: fotoId } });
+    await borrarArchivoSubido(foto.url);
     return { mensaje: 'Foto eliminada' };
   }
 

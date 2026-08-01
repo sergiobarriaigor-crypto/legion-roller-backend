@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { HistoriasController } from './historias.controller';
 import { HistoriasService } from './historias.service';
 import { HistoriasGateway } from './historias.gateway';
+import { HistoriasLimpiezaScheduler } from './historias-limpieza.scheduler';
 
 @Module({
   imports: [
@@ -11,6 +12,6 @@ import { HistoriasGateway } from './historias.gateway';
     }),
   ],
   controllers: [HistoriasController],
-  providers: [HistoriasService, HistoriasGateway],
+  providers: [HistoriasService, HistoriasGateway, HistoriasLimpiezaScheduler],
 })
 export class HistoriasModule {}

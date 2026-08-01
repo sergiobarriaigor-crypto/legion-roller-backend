@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from '../chat/chat.service';
 import { CrearPostDto } from './dto/crear-post.dto';
 import { ActualizarPostDto } from './dto/actualizar-post.dto';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const DIAS_VIGENCIA_POST = 7;
 const MAX_FOTOS_POR_POST = 3;
@@ -115,6 +116,25 @@ export class PostsService {
     });
   }
 
+  // fotos es un JSON array de URLs (hasta MAX_FOTOS_POR_POST); videoUrl es un
+  // único archivo aparte. Ambos son opcionales según el tipo del post.
+  private urlsArchivosPost(post: {
+    fotos: string | null;
+    videoUrl: string | null;
+  }): string[] {
+    const urls: string[] = [];
+    if (post.fotos) {
+      try {
+        const lista = JSON.parse(post.fotos) as string[];
+        for (const url of lista) if (url) urls.push(url);
+      } catch {
+        // fotos corrupto/vacío: se ignora, no bloquea el borrado
+      }
+    }
+    if (post.videoUrl) urls.push(post.videoUrl);
+    return urls;
+  }
+
   async eliminar(id: number, miembroId: number, rol: string) {
     const post = await this.obtenerOFallar(id);
     if (post.autorId !== miembroId && rol !== 'admin') {
@@ -130,7 +150,46 @@ export class PostsService {
     await this.prisma.comentarioPost.deleteMany({ where: { postId: id } });
     await this.prisma.reaccionPost.deleteMany({ where: { postId: id } });
     await this.prisma.post.delete({ where: { id } });
+    for (const url of this.urlsArchivosPost(post)) {
+      await borrarArchivoSubido(url);
+    }
     return { mensaje: 'Post eliminado' };
+  }
+
+  // Borrado real (no solo el filtro de vigencia que ya aplica listar()) de
+  // los posts que superaron DIAS_VIGENCIA_POST — llamado por
+  // PostsLimpiezaScheduler una vez al día, mismo patrón que
+  // ChatService.purgarMensajesVencidos()/HistoriasService.purgarHistoriasVencidas().
+  async purgarPostsVencidos(): Promise<number> {
+    const limite = new Date(Date.now() - DIAS_VIGENCIA_POST * MS_POR_DIA);
+    const vencidos = await this.prisma.post.findMany({
+      where: { createdAt: { lt: limite } },
+      select: { id: true, fotos: true, videoUrl: true },
+    });
+    if (vencidos.length === 0) return 0;
+
+    const ids = vencidos.map((p) => p.id);
+    const comentarios = await this.prisma.comentarioPost.findMany({
+      where: { postId: { in: ids } },
+      select: { id: true },
+    });
+    await this.prisma.reaccionComentarioPost.deleteMany({
+      where: { comentarioId: { in: comentarios.map((c) => c.id) } },
+    });
+    await this.prisma.comentarioPost.deleteMany({
+      where: { postId: { in: ids } },
+    });
+    await this.prisma.reaccionPost.deleteMany({
+      where: { postId: { in: ids } },
+    });
+    await this.prisma.post.deleteMany({ where: { id: { in: ids } } });
+
+    for (const post of vencidos) {
+      for (const url of this.urlsArchivosPost(post)) {
+        await borrarArchivoSubido(url);
+      }
+    }
+    return ids.length;
   }
 
   async toggleReaccion(postId: number, miembroId: number) {

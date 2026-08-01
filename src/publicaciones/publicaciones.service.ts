@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CrearPublicacionDto } from './dto/crear-publicacion.dto';
 import { ActualizarPublicacionDto } from './dto/actualizar-publicacion.dto';
 import { ConfirmarAsistenciaEventoDto } from './dto/confirmar-asistencia-evento.dto';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 // Reglas de asistencia a un EVENTO (charla/capacitación/actividad, no ruta):
 // un evento dura más que la simple "llegada" de una rodada, así que la
@@ -163,8 +164,21 @@ export class PublicacionesService {
     return this.formatear(actualizada);
   }
 
+  // fotos es un JSON array de URLs subidas por el admin al crear/editar la
+  // publicación.
+  private urlsArchivosPublicacion(publicacion: {
+    fotos: string | null;
+  }): string[] {
+    if (!publicacion.fotos) return [];
+    try {
+      return (JSON.parse(publicacion.fotos) as string[]).filter((u) => !!u);
+    } catch {
+      return [];
+    }
+  }
+
   async eliminar(id: number) {
-    await this.obtenerOFallar(id);
+    const publicacion = await this.obtenerOFallar(id);
     await this.prisma.rsvpRespuesta.deleteMany({
       where: { publicacionId: id },
     });
@@ -175,7 +189,43 @@ export class PublicacionesService {
       where: { publicacionId: id },
     });
     await this.prisma.publicacion.delete({ where: { id } });
+    for (const url of this.urlsArchivosPublicacion(publicacion)) {
+      await borrarArchivoSubido(url);
+    }
     return { mensaje: 'Publicación eliminada' };
+  }
+
+  // Borrado real (no solo el filtro de vigencia que ya aplica listar()) de
+  // las publicaciones que tienen duracionHoras configurada y ya vencieron —
+  // las que no tienen duracionHoras (null) son permanentes y nunca se tocan.
+  // Llamado por PublicacionesLimpiezaScheduler una vez al día, mismo patrón
+  // que los demás *.purgar*Vencid*() del proyecto.
+  async purgarPublicacionesVencidas(): Promise<number> {
+    const conVigencia = await this.prisma.publicacion.findMany({
+      where: { duracionHoras: { not: null } },
+      select: { id: true, fotos: true, duracionHoras: true, createdAt: true },
+    });
+    const vencidas = conVigencia.filter((p) => this.estaVencida(p));
+    if (vencidas.length === 0) return 0;
+
+    const ids = vencidas.map((p) => p.id);
+    await this.prisma.rsvpRespuesta.deleteMany({
+      where: { publicacionId: { in: ids } },
+    });
+    await this.prisma.asistenciaEvento.deleteMany({
+      where: { publicacionId: { in: ids } },
+    });
+    await this.prisma.reaccionPublicacion.deleteMany({
+      where: { publicacionId: { in: ids } },
+    });
+    await this.prisma.publicacion.deleteMany({ where: { id: { in: ids } } });
+
+    for (const publicacion of vencidas) {
+      for (const url of this.urlsArchivosPublicacion(publicacion)) {
+        await borrarArchivoSubido(url);
+      }
+    }
+    return ids.length;
   }
 
   async marcarRsvp(publicacionId: number, miembroId: number, estado: string) {
