@@ -12,6 +12,18 @@ const HORAS_VIGENCIA_HISTORIA = 24;
 const MAX_HISTORIAS_ACTIVAS = 10;
 const MAX_MENCIONES_POR_HISTORIA = 5;
 
+// Orden de la barra de historias: sin sistema de "amigos", la afinidad con
+// cada autor se infiere de cuánto interactuás con esa persona en una
+// ventana reciente (no de todo el historial — así el ranking se va
+// actualizando solo a medida que las relaciones cambian o el club crece,
+// sin tener que tocar el algoritmo). Un mensaje de chat pesa más que un
+// comentario y un comentario más que una reacción, porque escribirle a
+// alguien es una señal más intencional que tocar un botón.
+const DIAS_VENTANA_AFINIDAD = 30;
+const PESO_MENSAJE_CHAT = 3;
+const PESO_COMENTARIO = 2;
+const PESO_REACCION = 1;
+
 @Injectable()
 export class HistoriasService {
   constructor(
@@ -21,6 +33,153 @@ export class HistoriasService {
 
   private limiteVigencia() {
     return new Date(Date.now() - HORAS_VIGENCIA_HISTORIA * 60 * 60 * 1000);
+  }
+
+  // Puntaje de afinidad con cada candidato, sumando (en cualquiera de las
+  // dos direcciones) mensajes de chat 1 a 1, reacciones y comentarios en
+  // Post/Historia, todo dentro de los últimos DIAS_VENTANA_AFINIDAD días.
+  // No distingue "recibido" de "dado": ambas direcciones son señal real de
+  // interés mutuo, y sumarlas es más simple que ponderarlas aparte.
+  private async calcularAfinidad(
+    miembroIdActual: number,
+    candidatos: number[],
+  ): Promise<Map<number, number>> {
+    const puntos = new Map<number, number>(candidatos.map((id) => [id, 0]));
+    if (candidatos.length === 0) return puntos;
+
+    const limite = new Date(
+      Date.now() - DIAS_VENTANA_AFINIDAD * 24 * 60 * 60 * 1000,
+    );
+    function sumar(id: number, valor: number) {
+      puntos.set(id, (puntos.get(id) ?? 0) + valor);
+    }
+
+    // La sala de un DM es determinística ("dm-{idMenor}-{idMayor}"), así
+    // que se arma la lista de salas candidatas y se cuenta todo en una sola
+    // consulta agrupada, en vez de una consulta por persona.
+    const salaPorCandidato = new Map(
+      candidatos.map((id) => [
+        `dm-${Math.min(miembroIdActual, id)}-${Math.max(miembroIdActual, id)}`,
+        id,
+      ]),
+    );
+    const [
+      mensajes,
+      reaccionesPostRecibidas,
+      reaccionesPostDadas,
+      comentariosPostRecibidos,
+      comentariosPostDados,
+      reaccionesHistoriaRecibidas,
+      reaccionesHistoriaDadas,
+      comentariosHistoriaRecibidos,
+      comentariosHistoriaDados,
+    ] = await Promise.all([
+      this.prisma.mensajeChat.groupBy({
+        by: ['sala'],
+        where: {
+          sala: { in: [...salaPorCandidato.keys()] },
+          createdAt: { gte: limite },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.reaccionPost.groupBy({
+        by: ['miembroId'],
+        where: {
+          miembroId: { in: candidatos },
+          createdAt: { gte: limite },
+          post: { autorId: miembroIdActual },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.reaccionPost.findMany({
+        where: {
+          miembroId: miembroIdActual,
+          createdAt: { gte: limite },
+          post: { autorId: { in: candidatos } },
+        },
+        select: { post: { select: { autorId: true } } },
+      }),
+      this.prisma.comentarioPost.groupBy({
+        by: ['autorId'],
+        where: {
+          autorId: { in: candidatos },
+          createdAt: { gte: limite },
+          post: { autorId: miembroIdActual },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.comentarioPost.findMany({
+        where: {
+          autorId: miembroIdActual,
+          createdAt: { gte: limite },
+          post: { autorId: { in: candidatos } },
+        },
+        select: { post: { select: { autorId: true } } },
+      }),
+      this.prisma.reaccionHistoria.groupBy({
+        by: ['miembroId'],
+        where: {
+          miembroId: { in: candidatos },
+          createdAt: { gte: limite },
+          historia: { autorId: miembroIdActual },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.reaccionHistoria.findMany({
+        where: {
+          miembroId: miembroIdActual,
+          createdAt: { gte: limite },
+          historia: { autorId: { in: candidatos } },
+        },
+        select: { historia: { select: { autorId: true } } },
+      }),
+      this.prisma.comentarioHistoria.groupBy({
+        by: ['autorId'],
+        where: {
+          autorId: { in: candidatos },
+          createdAt: { gte: limite },
+          historia: { autorId: miembroIdActual },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.comentarioHistoria.findMany({
+        where: {
+          autorId: miembroIdActual,
+          createdAt: { gte: limite },
+          historia: { autorId: { in: candidatos } },
+        },
+        select: { historia: { select: { autorId: true } } },
+      }),
+    ]);
+
+    for (const m of mensajes) {
+      const id = salaPorCandidato.get(m.sala);
+      if (id !== undefined) sumar(id, m._count._all * PESO_MENSAJE_CHAT);
+    }
+    for (const r of reaccionesPostRecibidas) {
+      sumar(r.miembroId, r._count._all * PESO_REACCION);
+    }
+    for (const r of reaccionesPostDadas) sumar(r.post.autorId, PESO_REACCION);
+    for (const c of comentariosPostRecibidos) {
+      sumar(c.autorId, c._count._all * PESO_COMENTARIO);
+    }
+    for (const c of comentariosPostDados) {
+      sumar(c.post.autorId, PESO_COMENTARIO);
+    }
+    for (const r of reaccionesHistoriaRecibidas) {
+      sumar(r.miembroId, r._count._all * PESO_REACCION);
+    }
+    for (const r of reaccionesHistoriaDadas) {
+      sumar(r.historia.autorId, PESO_REACCION);
+    }
+    for (const c of comentariosHistoriaRecibidos) {
+      sumar(c.autorId, c._count._all * PESO_COMENTARIO);
+    }
+    for (const c of comentariosHistoriaDados) {
+      sumar(c.historia.autorId, PESO_COMENTARIO);
+    }
+
+    return puntos;
   }
 
   async crear(autorId: number, dto: CrearHistoriaDto) {
@@ -159,6 +318,14 @@ export class HistoriasService {
       }
     }
 
+    const candidatosAfinidad = [...grupos.keys()].filter(
+      (id) => id !== miembroIdActual,
+    );
+    const afinidad = await this.calcularAfinidad(
+      miembroIdActual,
+      candidatosAfinidad,
+    );
+
     return [...grupos.values()]
       .map((g) => ({
         autorId: g.autorId,
@@ -227,6 +394,11 @@ export class HistoriasService {
       .sort((a, b) => {
         if (a.vistoCompleto !== b.vistoCompleto)
           return a.vistoCompleto ? 1 : -1;
+        // Sin sistema de "amigos": entre dos autores igual de vistos/sin
+        // ver, se prioriza con quién interactuás más (ver calcularAfinidad).
+        const puntosA = afinidad.get(a.autorId) ?? 0;
+        const puntosB = afinidad.get(b.autorId) ?? 0;
+        if (puntosA !== puntosB) return puntosB - puntosA;
         const ultimoA = a.historias[a.historias.length - 1].createdAt.getTime();
         const ultimoB = b.historias[b.historias.length - 1].createdAt.getTime();
         return ultimoB - ultimoA;
