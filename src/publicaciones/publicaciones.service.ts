@@ -17,6 +17,12 @@ const VENTANA_ANTES_EVENTO_MIN = 15;
 const VENTANA_DESPUES_EVENTO_MIN = 120;
 const RADIO_CHECKIN_EVENTO_KM = 0.3;
 
+// Mismo criterio de "cuánto antes avisar" que MINUTOS_ANTES_RECORDATORIO en
+// recordatorios.scheduler.ts (push del sistema) — pero esto es para la
+// campana in-app, un sistema totalmente aparte (no depende de recordatorioEnviado
+// ni de tener push activado): se calcula en vivo cada vez que se consulta.
+const MINUTOS_AVISO_PROXIMA_RODADA = 30;
+
 @Injectable()
 export class PublicacionesService {
   constructor(private prisma: PrismaService) {}
@@ -100,6 +106,49 @@ export class PublicacionesService {
       select: { publicacionId: true },
     });
     return reacciones.map((r) => r.publicacionId);
+  }
+
+  // Para la campana: la rodada (RSVP "sí" o "tal vez") que arranca dentro de
+  // los próximos MINUTOS_AVISO_PROXIMA_RODADA minutos, con su punto GPS real
+  // para que el frontend pueda centrar el mapa ahí al tocar el aviso. Se
+  // recalcula en cada consulta (sin flag de "ya enviado") — a diferencia del
+  // push del sistema, acá el aviso debe seguir visible en la campana mientras
+  // la rodada no haya empezado, no dispararse una sola vez.
+  async proximaRodada(miembroId: number) {
+    const candidatas = await this.prisma.publicacion.findMany({
+      where: {
+        tipo: 'rodada',
+        cerrada: false,
+        rsvps: { some: { miembroId, estado: { in: ['yes', 'maybe'] } } },
+      },
+      select: {
+        id: true,
+        titulo: true,
+        fecha: true,
+        hora: true,
+        puntoLat: true,
+        puntoLon: true,
+        puntoEncuentro: true,
+      },
+    });
+
+    const ahora = Date.now();
+    for (const c of candidatas) {
+      const fechaHora = this.combinarFechaHora(c.fecha, c.hora);
+      if (!fechaHora) continue;
+      const minutosFaltan = (fechaHora.getTime() - ahora) / 60000;
+      if (minutosFaltan > 0 && minutosFaltan <= MINUTOS_AVISO_PROXIMA_RODADA) {
+        return {
+          id: c.id,
+          titulo: c.titulo,
+          puntoLat: c.puntoLat,
+          puntoLon: c.puntoLon,
+          puntoEncuentro: c.puntoEncuentro,
+          minutosFaltan: Math.round(minutosFaltan),
+        };
+      }
+    }
+    return null;
   }
 
   async toggleReaccion(publicacionId: number, miembroId: number) {

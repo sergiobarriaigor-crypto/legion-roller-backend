@@ -50,6 +50,12 @@ export class PublicacionesController {
     return this.publicacionesService.misReacciones(req.user.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('proxima-rodada')
+  proximaRodada(@Req() req: RequestConUsuario) {
+    return this.publicacionesService.proximaRodada(req.user.id);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Post()
