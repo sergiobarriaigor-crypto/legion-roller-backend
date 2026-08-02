@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
+import { combinarFechaHoraChile } from '../common/fecha-chile.util';
 
 const HORAS_VIGENCIA_PATINANDO = 4;
 const HORAS_ESTADO = 8;
@@ -133,9 +134,7 @@ export class MapaService {
     fecha: string | null,
     hora: string | null,
   ): Date | null {
-    if (!fecha) return null;
-    const d = new Date(`${fecha}T${hora ?? '00:00'}:00`);
-    return Number.isNaN(d.getTime()) ? null : d;
+    return combinarFechaHoraChile(fecha, hora);
   }
 
   // Rodadas candidatas para el modal "Se detectó la rodada '...'. ¿Deseas

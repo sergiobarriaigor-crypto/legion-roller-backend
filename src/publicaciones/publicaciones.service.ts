@@ -8,6 +8,7 @@ import { CrearPublicacionDto } from './dto/crear-publicacion.dto';
 import { ActualizarPublicacionDto } from './dto/actualizar-publicacion.dto';
 import { ConfirmarAsistenciaEventoDto } from './dto/confirmar-asistencia-evento.dto';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
+import { combinarFechaHoraChile } from '../common/fecha-chile.util';
 
 // Reglas de asistencia a un EVENTO (charla/capacitación/actividad, no ruta):
 // un evento dura más que la simple "llegada" de una rodada, así que la
@@ -27,15 +28,11 @@ const MINUTOS_AVISO_PROXIMA_RODADA = 30;
 export class PublicacionesService {
   constructor(private prisma: PrismaService) {}
 
-  // Mismo patrón que mapa.service.ts (no se comparte entre módulos, ver
-  // criterio ya usado en RecordatoriosScheduler).
   private combinarFechaHora(
     fecha: string | null,
     hora: string | null,
   ): Date | null {
-    if (!fecha) return null;
-    const d = new Date(`${fecha}T${hora ?? '00:00'}:00`);
-    return Number.isNaN(d.getTime()) ? null : d;
+    return combinarFechaHoraChile(fecha, hora);
   }
 
   private distanciaHaversineKm(

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesPushService } from './notificaciones-push.service';
+import { combinarFechaHoraChile } from '../common/fecha-chile.util';
 
 const TIPOS_CON_RECORDATORIO = ['rodada', 'evento', 'anuncio'] as const;
 const MINUTOS_ANTES_RECORDATORIO = 30;
@@ -28,9 +29,7 @@ export class RecordatoriosScheduler {
     fecha: string | null,
     hora: string | null,
   ): Date | null {
-    if (!fecha) return null;
-    const d = new Date(`${fecha}T${hora ?? '00:00'}:00`);
-    return Number.isNaN(d.getTime()) ? null : d;
+    return combinarFechaHoraChile(fecha, hora);
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
