@@ -246,6 +246,7 @@ export class CalendarioService {
       titulo: inv.actividad.titulo,
       fecha: inv.actividad.fecha,
       hora: inv.actividad.hora,
+      fotoUrl: inv.actividad.fotoUrl,
       creadorNombre: inv.actividad.creador.nombre,
     }));
   }
