@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -12,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CalendarioService } from './calendario.service';
 import { CrearActividadDto } from './dto/crear-actividad.dto';
+import { ActualizarActividadDto } from './dto/actualizar-actividad.dto';
 import { ResponderInvitacionDto } from './dto/responder-invitacion.dto';
 
 interface RequestConUsuario {
@@ -45,6 +47,25 @@ export class CalendarioController {
     @Body() dto: CrearActividadDto,
   ) {
     return this.calendarioService.crearActividad(req.user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('actividades/:id')
+  obtenerActividad(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.calendarioService.obtenerActividad(req.user.id, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('actividades/:id')
+  editarActividad(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ActualizarActividadDto,
+  ) {
+    return this.calendarioService.editarActividad(req.user.id, id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

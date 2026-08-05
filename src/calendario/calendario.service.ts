@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { CrearActividadDto } from './dto/crear-actividad.dto';
+import { ActualizarActividadDto } from './dto/actualizar-actividad.dto';
 import { feriadosDelMes } from '../common/feriados-chile.util';
 
 const ETIQUETA_CATEGORIA: Record<string, string> = {
@@ -103,6 +104,107 @@ export class CalendarioService {
       where: { id: invitacion.id },
       data: { estado },
     });
+  }
+
+  // Detalle completo de una actividad propia — a diferencia de ItemCalendario
+  // (pensado para la vista de mes), esto incluye todo lo necesario para
+  // prellenar el formulario de edición (invitadosIds, musicaId, etc.).
+  async obtenerActividad(miembroId: number, actividadId: number) {
+    const actividad = await this.prisma.actividadCalendario.findUnique({
+      where: { id: actividadId },
+      include: { invitados: true },
+    });
+    if (!actividad) throw new NotFoundException('Actividad no encontrada.');
+    if (actividad.creadorId !== miembroId) {
+      throw new ForbiddenException(
+        'Solo quien creó la actividad puede verla para editar.',
+      );
+    }
+    return {
+      id: actividad.id,
+      categoria: actividad.categoria,
+      titulo: actividad.titulo,
+      descripcion: actividad.descripcion,
+      fecha: actividad.fecha,
+      hora: actividad.hora,
+      puntoEncuentro: actividad.puntoEncuentro,
+      puntoLat: actividad.puntoLat,
+      puntoLon: actividad.puntoLon,
+      fotoUrl: actividad.fotoUrl,
+      musicaId: actividad.musicaId,
+      minutosAvisoCreador: actividad.minutosAvisoCreador,
+      cancelada: actividad.cancelada,
+      invitadosIds: actividad.invitados.map((i) => i.miembroId),
+    };
+  }
+
+  async editarActividad(
+    miembroId: number,
+    actividadId: number,
+    dto: ActualizarActividadDto,
+  ) {
+    const actividad = await this.prisma.actividadCalendario.findUnique({
+      where: { id: actividadId },
+      include: { invitados: true },
+    });
+    if (!actividad) throw new NotFoundException('Actividad no encontrada.');
+    if (actividad.creadorId !== miembroId) {
+      throw new ForbiddenException(
+        'Solo quien creó la actividad puede editarla.',
+      );
+    }
+    if (actividad.cancelada) {
+      throw new ForbiddenException(
+        'No se puede editar una actividad cancelada.',
+      );
+    }
+
+    const actualizada = await this.prisma.actividadCalendario.update({
+      where: { id: actividadId },
+      data: {
+        categoria: dto.categoria,
+        titulo: dto.titulo,
+        descripcion: dto.descripcion,
+        fecha: dto.fecha,
+        hora: dto.hora,
+        puntoEncuentro: dto.puntoEncuentro,
+        puntoLat: dto.puntoLat,
+        puntoLon: dto.puntoLon,
+        fotoUrl: dto.fotoUrl,
+        musicaId: dto.musicaId,
+        minutosAvisoCreador: dto.minutosAvisoCreador,
+      },
+    });
+
+    if (dto.invitadosIds) {
+      const nuevosIds = Array.from(new Set(dto.invitadosIds)).filter(
+        (id) => id !== miembroId,
+      );
+      const existentesIds = actividad.invitados.map((i) => i.miembroId);
+      const aAgregar = nuevosIds.filter((id) => !existentesIds.includes(id));
+      const aQuitar = existentesIds.filter((id) => !nuevosIds.includes(id));
+
+      if (aQuitar.length > 0) {
+        await this.prisma.invitacionActividad.deleteMany({
+          where: { actividadId, miembroId: { in: aQuitar } },
+        });
+      }
+      if (aAgregar.length > 0) {
+        await this.prisma.invitacionActividad.createMany({
+          data: aAgregar.map((idMiembro) => ({
+            actividadId,
+            miembroId: idMiembro,
+          })),
+        });
+        await this.notificacionesPushService.enviarAMiembros(aAgregar, {
+          titulo: `📅 ${ETIQUETA_CATEGORIA[actualizada.categoria] ?? actualizada.categoria}`,
+          cuerpo: `Te invitaron: ${actualizada.titulo}`,
+          url: '/perfil',
+        });
+      }
+    }
+
+    return actualizada;
   }
 
   async cancelarActividad(miembroId: number, actividadId: number) {
