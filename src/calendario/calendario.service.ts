@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { CrearActividadDto } from './dto/crear-actividad.dto';
+import { feriadosDelMes } from '../common/feriados-chile.util';
 
 const ETIQUETA_CATEGORIA: Record<string, string> = {
   rodada: 'Rodada oficial',
@@ -21,7 +22,7 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
 // en vivo desde Miembro.fechaNacimiento — nunca se guarda una fila aparte
 // para los cumpleaños, se recalculan cada vez que se pide el mes.
 export interface ItemCalendario {
-  origen: 'publicacion' | 'actividad' | 'cumpleanos';
+  origen: 'publicacion' | 'actividad' | 'cumpleanos' | 'feriado';
   id: number;
   categoria: string;
   titulo: string;
@@ -222,6 +223,21 @@ export class CalendarioService {
         esCreador: false,
       });
     }
+
+    feriadosDelMes(anio, mes).forEach((f, idx) => {
+      items.push({
+        origen: 'feriado',
+        id: -(idx + 1),
+        categoria: 'feriado',
+        titulo: f.nombre,
+        fecha: f.fecha,
+        hora: null,
+        puntoEncuentro: null,
+        fotoUrl: null,
+        cancelada: false,
+        esCreador: false,
+      });
+    });
 
     return items.sort((a, b) => a.fecha.localeCompare(b.fecha));
   }
