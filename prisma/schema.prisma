@@ -838,8 +838,10 @@ model ActividadCalendario {
   musicaId String?
 
   // Cancelar en vez de borrar — se sigue viendo (gris/tachado) para quienes
-  // ya habían aceptado, en vez de desaparecer sin explicación.
-  cancelada Boolean @default(false)
+  // ya habían aceptado, en vez de desaparecer sin explicación. El motivo es
+  // opcional y se muestra a los invitados junto con el aviso push.
+  cancelada         Boolean @default(false)
+  motivoCancelacion String?
 
   // Recordatorios: el aviso de 24h antes es fijo y le llega a todos los que
   // aceptaron (aviso24hEnviado); el aviso personal es solo para el creador,

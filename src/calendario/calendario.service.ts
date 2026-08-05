@@ -8,6 +8,12 @@ import { NotificacionesPushService } from '../notificaciones-push/notificaciones
 import { CrearActividadDto } from './dto/crear-actividad.dto';
 import { ActualizarActividadDto } from './dto/actualizar-actividad.dto';
 import { feriadosDelMes } from '../common/feriados-chile.util';
+import { borrarArchivoSubido } from '../common/uploads-fs.util';
+
+// Actividades canceladas se borran solas 15 días después de la FECHA DEL
+// EVENTO (mismo plazo y criterio que la foto) — ver
+// CalendarioLimpiezaScheduler.purgarActividadesCanceladas.
+export const DIAS_RETENCION_CANCELADA = 15;
 
 const ETIQUETA_CATEGORIA: Record<string, string> = {
   rodada: 'Rodada oficial',
@@ -34,6 +40,7 @@ export interface ItemCalendario {
   puntoEncuentro: string | null;
   fotoUrl: string | null;
   cancelada: boolean;
+  motivoCancelacion: string | null;
   esCreador: boolean;
 }
 
@@ -208,9 +215,17 @@ export class CalendarioService {
     return actualizada;
   }
 
-  async cancelarActividad(miembroId: number, actividadId: number) {
+  async cancelarActividad(
+    miembroId: number,
+    actividadId: number,
+    motivo?: string,
+  ) {
     const actividad = await this.prisma.actividadCalendario.findUnique({
       where: { id: actividadId },
+      include: {
+        creador: { select: { nombre: true } },
+        invitados: { where: { estado: { in: ['aceptada', 'pendiente'] } } },
+      },
     });
     if (!actividad) throw new NotFoundException('Actividad no encontrada.');
     if (actividad.creadorId !== miembroId) {
@@ -218,10 +233,71 @@ export class CalendarioService {
         'Solo quien creó la actividad puede cancelarla.',
       );
     }
-    return this.prisma.actividadCalendario.update({
+    const cancelada = await this.prisma.actividadCalendario.update({
       where: { id: actividadId },
-      data: { cancelada: true },
+      data: { cancelada: true, motivoCancelacion: motivo ?? null },
     });
+
+    const destinatarios = actividad.invitados.map((i) => i.miembroId);
+    if (destinatarios.length > 0) {
+      await this.notificacionesPushService.enviarAMiembros(destinatarios, {
+        titulo: '📅 Actividad cancelada',
+        cuerpo: `${actividad.creador.nombre} canceló: ${actividad.titulo}${motivo ? ' · ' + motivo : ''}`,
+        url: '/perfil',
+      });
+    }
+
+    return cancelada;
+  }
+
+  // Borrado real (no reversible) — a diferencia de cancelar, esto saca la
+  // fila por completo. InvitacionActividad tiene ON DELETE RESTRICT, así que
+  // hay que borrar las invitaciones antes que la actividad.
+  private async borrarActividadPermanente(actividad: {
+    id: number;
+    fotoUrl: string | null;
+  }) {
+    await this.prisma.invitacionActividad.deleteMany({
+      where: { actividadId: actividad.id },
+    });
+    await this.prisma.actividadCalendario.delete({
+      where: { id: actividad.id },
+    });
+    if (actividad.fotoUrl) {
+      await borrarArchivoSubido(actividad.fotoUrl);
+    }
+  }
+
+  async eliminarActividad(miembroId: number, actividadId: number) {
+    const actividad = await this.prisma.actividadCalendario.findUnique({
+      where: { id: actividadId },
+    });
+    if (!actividad) throw new NotFoundException('Actividad no encontrada.');
+    if (actividad.creadorId !== miembroId) {
+      throw new ForbiddenException(
+        'Solo quien creó la actividad puede eliminarla.',
+      );
+    }
+    await this.borrarActividadPermanente(actividad);
+    return { ok: true };
+  }
+
+  // Actividades canceladas que ya pasaron su fecha hace más de
+  // DIAS_RETENCION_CANCELADA días — llamado por CalendarioLimpiezaScheduler.
+  async purgarActividadesCanceladasVencidas(): Promise<number> {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - DIAS_RETENCION_CANCELADA);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const limiteStr = `${limite.getFullYear()}-${pad(limite.getMonth() + 1)}-${pad(limite.getDate())}`;
+
+    const vencidas = await this.prisma.actividadCalendario.findMany({
+      where: { cancelada: true, fecha: { lte: limiteStr } },
+      select: { id: true, fotoUrl: true },
+    });
+    for (const actividad of vencidas) {
+      await this.borrarActividadPermanente(actividad);
+    }
+    return vencidas.length;
   }
 
   // Para la campana: invitaciones que todavía no respondiste — se recalcula
@@ -279,6 +355,7 @@ export class CalendarioService {
         puntoEncuentro: p.puntoEncuentro,
         fotoUrl: null,
         cancelada: p.cancelada,
+        motivoCancelacion: null,
         esCreador: false,
       });
     }
@@ -304,6 +381,7 @@ export class CalendarioService {
         puntoEncuentro: a.puntoEncuentro,
         fotoUrl: a.fotoUrl,
         cancelada: a.cancelada,
+        motivoCancelacion: a.motivoCancelacion,
         esCreador: a.creadorId === miembroId,
       });
     }
@@ -329,6 +407,7 @@ export class CalendarioService {
         puntoEncuentro: null,
         fotoUrl: m.fotoUrl,
         cancelada: false,
+        motivoCancelacion: null,
         esCreador: false,
       });
     }
@@ -345,6 +424,7 @@ export class CalendarioService {
         puntoEncuentro: null,
         fotoUrl: null,
         cancelada: false,
+        motivoCancelacion: null,
         esCreador: false,
       });
     });

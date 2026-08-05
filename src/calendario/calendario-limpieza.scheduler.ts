@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
+import { CalendarioService } from './calendario.service';
 
 // La foto de apoyo visual de una actividad se borra 15 días después de la
 // FECHA DEL EVENTO (no de cuándo se creó) — la actividad se queda en el
@@ -12,7 +13,19 @@ const DIAS_VIGENCIA_FOTO = 15;
 export class CalendarioLimpiezaScheduler {
   private readonly logger = new Logger(CalendarioLimpiezaScheduler.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private calendarioService: CalendarioService,
+  ) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async purgarActividadesCanceladasVencidas() {
+    const cantidad =
+      await this.calendarioService.purgarActividadesCanceladasVencidas();
+    if (cantidad > 0) {
+      this.logger.log(`Actividades canceladas vencidas borradas: ${cantidad}`);
+    }
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async purgarFotosVencidas() {

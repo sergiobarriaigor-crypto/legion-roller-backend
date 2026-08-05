@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -15,6 +16,7 @@ import { CalendarioService } from './calendario.service';
 import { CrearActividadDto } from './dto/crear-actividad.dto';
 import { ActualizarActividadDto } from './dto/actualizar-actividad.dto';
 import { ResponderInvitacionDto } from './dto/responder-invitacion.dto';
+import { CancelarActividadDto } from './dto/cancelar-actividad.dto';
 
 interface RequestConUsuario {
   user: { id: number };
@@ -87,7 +89,21 @@ export class CalendarioController {
   cancelarActividad(
     @Req() req: RequestConUsuario,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelarActividadDto,
   ) {
-    return this.calendarioService.cancelarActividad(req.user.id, id);
+    return this.calendarioService.cancelarActividad(
+      req.user.id,
+      id,
+      dto.motivo,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('actividades/:id')
+  eliminarActividad(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.calendarioService.eliminarActividad(req.user.id, id);
   }
 }
