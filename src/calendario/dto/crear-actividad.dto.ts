@@ -1,5 +1,4 @@
 import {
-  ArrayNotEmpty,
   IsArray,
   IsIn,
   IsInt,
@@ -9,13 +8,14 @@ import {
 } from 'class-validator';
 
 // A diferencia de Publicacion (rodada/evento, creados por el Admin, abiertos
-// a todo el club vía RSVP), estas tres categorías las puede crear cualquier
+// a todo el club vía RSVP), estas categorías las puede crear cualquier
 // miembro, con una lista de invitados propia — ver ActividadCalendario en
 // schema.prisma.
 export const CATEGORIAS_ACTIVIDAD = [
-  'entrenamiento',
   'reunion',
   'patinada_libre',
+  'entrenamiento',
+  'otros',
 ] as const;
 
 // Mismas 3 opciones que se le ofrecen al creador para su aviso personal
@@ -37,9 +37,8 @@ export class CrearActividadDto {
   @IsString()
   fecha: string;
 
-  @IsOptional()
   @IsString()
-  hora?: string;
+  hora: string;
 
   @IsOptional()
   @IsString()
@@ -61,12 +60,11 @@ export class CrearActividadDto {
   @IsString()
   musicaId?: string;
 
-  @IsOptional()
   @IsIn(MINUTOS_AVISO_CREADOR_VALIDOS)
-  minutosAvisoCreador?: number;
+  minutosAvisoCreador: number;
 
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @IsInt({ each: true })
-  invitadosIds: number[];
+  invitadosIds?: number[];
 }

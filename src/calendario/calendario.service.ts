@@ -15,6 +15,7 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   entrenamiento: 'Entrenamiento',
   reunion: 'Reunión',
   patinada_libre: 'Patinada libre',
+  otros: 'Otros',
 };
 
 // Un item unificado del calendario: puede venir de una Publicacion oficial
@@ -53,7 +54,7 @@ export class CalendarioService {
   ) {}
 
   async crearActividad(creadorId: number, dto: CrearActividadDto) {
-    const invitadosIds = Array.from(new Set(dto.invitadosIds)).filter(
+    const invitadosIds = Array.from(new Set(dto.invitadosIds ?? [])).filter(
       (id) => id !== creadorId,
     );
 
