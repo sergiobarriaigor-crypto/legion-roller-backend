@@ -40,6 +40,15 @@ model Miembro {
   // Ajuste post-Fase 11: foto de perfil circular, mostrada en el mapa mientras comparte ubicación
   fotoUrl String?
 
+  // Modo oculto: el avatar no aparece en el mapa de los demás miembros (ni en
+  // "Patinadores Activos") mientras está activo — el GPS/grabación de ruta
+  // siguen funcionando igual, y el propio usuario se sigue viendo a sí mismo
+  // en su mapa (su marcador se dibuja desde su posición local, no desde esta
+  // lista). Se ignora si tiene un SOS activo: mapa.service.ts no filtra por
+  // esto la lista de emergencias, así que sigue apareciendo con la alerta
+  // roja para que cualquiera pueda ubicarlo y ayudar.
+  modoOculto Boolean @default(false)
+
   // Ajuste post-Fase 12: mejor distancia alcanzada en una sola ruta/sesión
   // (no acumulada), para los hitos de "Distancias Alcanzadas" — se guarda
   // aparte de Recorrido para que un logro ya obtenido no se pierda si el

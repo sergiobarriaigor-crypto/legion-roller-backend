@@ -98,6 +98,7 @@ export class PerfilService {
 
   async miPerfil(miembroId: number) {
     const publico = await this.perfilPublico(miembroId);
+    const miembro = await this.obtenerOFallar(miembroId);
     const limite = new Date(
       Date.now() - DIAS_VIGENCIA_RECO * 24 * 60 * 60 * 1000,
     );
@@ -115,6 +116,7 @@ export class PerfilService {
 
     return {
       ...publico,
+      modoOculto: miembro.modoOculto,
       reconocimientos: reconocimientos.map((r) => ({
         id: r.id,
         deNombre: r.de.nombre,
@@ -124,6 +126,14 @@ export class PerfilService {
         leida: r.leida,
       })),
     };
+  }
+
+  async setModoOculto(miembroId: number, activo: boolean) {
+    await this.prisma.miembro.update({
+      where: { id: miembroId },
+      data: { modoOculto: activo },
+    });
+    return { modoOculto: activo };
   }
 
   async toggleTecnica(miembroId: number, tecnica: string) {

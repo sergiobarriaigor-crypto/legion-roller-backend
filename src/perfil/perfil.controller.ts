@@ -17,6 +17,7 @@ import { EstadoDto } from './dto/estado.dto';
 import { FotoDto } from './dto/foto.dto';
 import { FotoGaleriaDto } from './dto/foto-galeria.dto';
 import { ReconocimientoDto } from './dto/reconocimiento.dto';
+import { ModoOcultoDto } from './dto/modo-oculto.dto';
 
 interface RequestConUsuario {
   user: { id: number; rol: string };
@@ -63,6 +64,11 @@ export class PerfilController {
   @Delete('foto')
   quitarFoto(@Req() req: RequestConUsuario) {
     return this.perfilService.quitarFoto(req.user.id);
+  }
+
+  @Put('modo-oculto')
+  setModoOculto(@Req() req: RequestConUsuario, @Body() dto: ModoOcultoDto) {
+    return this.perfilService.setModoOculto(req.user.id, dto.activo);
   }
 
   @Post(':id/reconocimientos')

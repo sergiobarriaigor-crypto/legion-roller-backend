@@ -70,12 +70,23 @@ export class MapaService {
     return { mensaje: 'Dejaste de compartir tu ubicación' };
   }
 
+  // Modo oculto (perfil.service.ts setModoOculto): el avatar no debe
+  // aparecer en el mapa de nadie -- ni para otros miembros ni para el Admin,
+  // que respeta la misma decisión -- mientras el GPS/grabación de ruta
+  // siguen intactos por dentro. Se filtra acá, en el origen de la lista, así
+  // que tanto el mapa como el panel de Patinadores Activos (que consumen
+  // esta misma respuesta) quedan cubiertos con un solo cambio. El propio
+  // usuario oculto igual se ve a sí mismo: su marcador se dibuja en el
+  // frontend desde su posición GPS local, no desde esta lista. Las
+  // emergencias activas (SOS) son una consulta aparte (emergencias.service.ts
+  // activas()) que no filtra por esto -- por diseño, un SOS siempre se debe
+  // ver en el mapa de todos para pedir ayuda, así que ignora el modo oculto.
   async patinandoAhora() {
     const limite = new Date(
       Date.now() - HORAS_VIGENCIA_PATINANDO * 60 * 60 * 1000,
     );
     const activos = await this.prisma.ubicacionActiva.findMany({
-      where: { actualizadoEn: { gte: limite } },
+      where: { actualizadoEn: { gte: limite }, miembro: { modoOculto: false } },
       include: {
         miembro: {
           select: {
