@@ -26,6 +26,7 @@ export interface ItemCalendario {
   id: number;
   categoria: string;
   titulo: string;
+  descripcion: string | null;
   fecha: string;
   hora: string | null;
   puntoEncuentro: string | null;
@@ -60,6 +61,7 @@ export class CalendarioService {
         creadorId,
         categoria: dto.categoria,
         titulo: dto.titulo,
+        descripcion: dto.descripcion,
         fecha: dto.fecha,
         hora: dto.hora,
         puntoEncuentro: dto.puntoEncuentro,
@@ -167,6 +169,7 @@ export class CalendarioService {
         id: p.id,
         categoria: p.tipo,
         titulo: p.titulo,
+        descripcion: null,
         fecha: p.fecha as string,
         hora: p.hora,
         puntoEncuentro: p.puntoEncuentro,
@@ -191,6 +194,7 @@ export class CalendarioService {
         id: a.id,
         categoria: a.categoria,
         titulo: a.titulo,
+        descripcion: a.descripcion,
         fecha: a.fecha,
         hora: a.hora,
         puntoEncuentro: a.puntoEncuentro,
@@ -215,6 +219,7 @@ export class CalendarioService {
         id: m.id,
         categoria: 'cumpleanos',
         titulo: `Cumpleaños de ${m.nombre}`,
+        descripcion: null,
         fecha: `${anio}-${pad(mes)}-${pad(dia)}`,
         hora: null,
         puntoEncuentro: null,
@@ -230,6 +235,7 @@ export class CalendarioService {
         id: -(idx + 1),
         categoria: 'feriado',
         titulo: f.nombre,
+        descripcion: null,
         fecha: f.fecha,
         hora: null,
         puntoEncuentro: null,

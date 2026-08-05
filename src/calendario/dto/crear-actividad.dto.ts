@@ -30,6 +30,10 @@ export class CrearActividadDto {
   @IsString()
   titulo: string;
 
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
+
   @IsString()
   fecha: string;
 

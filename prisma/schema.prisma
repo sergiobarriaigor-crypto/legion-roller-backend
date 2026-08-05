@@ -825,6 +825,7 @@ model ActividadCalendario {
   creador   Miembro @relation("ActividadCreador", fields: [creadorId], references: [id])
   categoria String
   titulo    String
+  descripcion String?
   fecha     String // "YYYY-MM-DD"
   hora      String? // "HH:MM"
   puntoEncuentro String?
