@@ -15,6 +15,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { HistoriasModule } from './historias/historias.module';
 import { NotificacionesPushModule } from './notificaciones-push/notificaciones-push.module';
 import { ClimaModule } from './clima/clima.module';
+import { CalendarioModule } from './calendario/calendario.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ClimaModule } from './clima/clima.module';
     HistoriasModule,
     NotificacionesPushModule,
     ClimaModule,
+    CalendarioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -109,6 +109,11 @@ model Miembro {
   votosEncuestaChat     VotoEncuestaChat[]
 
   reaccionesPublicacion ReaccionPublicacion[]
+
+  // Ajuste: calendario de la comunidad — entrenamientos/reuniones/patinadas
+  // libres creadas por cualquier miembro, con lista de invitados propia.
+  actividadesCreadas    ActividadCalendario[]  @relation("ActividadCreador")
+  invitacionesActividad InvitacionActividad[]
 }
 
 // Ajuste post-Fase 12: suscripción de Web Push de un dispositivo/navegador
@@ -227,6 +232,10 @@ model Publicacion {
   // que el Admin la marca true (botón "Marcar rodada como finalizada"), deja
   // de concederse, sin importar la ventana horaria automática.
   cerrada           Boolean  @default(false)
+  // Ajuste: cancelar una rodada/evento sin borrarla — se sigue viendo en el
+  // muro (tachada) y en el calendario de quienes habían confirmado (en gris/
+  // rojo), a diferencia de borrarla, que la haría desaparecer sin explicación.
+  cancelada      Boolean  @default(false)
   rsvp           Boolean  @default(false)
   duracionHoras  Int? // vencimiento; null = no vence
   activaEnMapa   Boolean  @default(false)
@@ -801,4 +810,60 @@ model ReaccionFotoGaleria {
   createdAt DateTime    @default(now())
 
   @@unique([fotoId, miembroId])
+}
+
+// Ajuste: calendario de la comunidad — a diferencia de Publicacion (siempre
+// creada por el Admin, abierta a todo el club vía RSVP), esto es creado por
+// CUALQUIER miembro con una lista de invitados propia (ver InvitacionActividad).
+// Las rodadas oficiales (creadas por el Admin) siguen viviendo en Publicacion
+// y no generan una fila acá — el calendario las lee aparte, combinando ambas
+// fuentes en calendario.service.ts.
+// categoria: "entrenamiento" | "reunion" | "patinada_libre"
+model ActividadCalendario {
+  id        Int     @id @default(autoincrement())
+  creadorId Int
+  creador   Miembro @relation("ActividadCreador", fields: [creadorId], references: [id])
+  categoria String
+  titulo    String
+  fecha     String // "YYYY-MM-DD"
+  hora      String? // "HH:MM"
+  puntoEncuentro String?
+  puntoLat       Float?
+  puntoLon       Float?
+
+  // Apoyo visual opcional: reutiliza el mismo editor/catálogo de música que
+  // Historias (foto con filtro ya aplicado + referencia a CANCIONES_HISTORIA).
+  fotoUrl  String?
+  musicaId String?
+
+  // Cancelar en vez de borrar — se sigue viendo (gris/tachado) para quienes
+  // ya habían aceptado, en vez de desaparecer sin explicación.
+  cancelada Boolean @default(false)
+
+  // Recordatorios: el aviso de 24h antes es fijo y le llega a todos los que
+  // aceptaron (aviso24hEnviado); el aviso personal es solo para el creador,
+  // con el tiempo que él eligió al crear la actividad (null = no quiso uno).
+  minutosAvisoCreador Int?
+  avisoCreadorEnviado Boolean @default(false)
+  aviso24hEnviado     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  invitados InvitacionActividad[]
+}
+
+// Una invitación por miembro y actividad — mismo patrón que RsvpRespuesta,
+// pero acá la lista de invitados la arma quien crea la actividad (no es
+// abierta a que cualquiera responda sin haber sido invitado).
+model InvitacionActividad {
+  id            Int                 @id @default(autoincrement())
+  actividadId   Int
+  actividad     ActividadCalendario @relation(fields: [actividadId], references: [id])
+  miembroId     Int
+  miembro       Miembro             @relation(fields: [miembroId], references: [id])
+  estado        String              @default("pendiente") // "pendiente" | "aceptada" | "rechazada"
+  createdAt     DateTime            @default(now())
+  actualizadoEn DateTime            @updatedAt
+
+  @@unique([actividadId, miembroId])
 }

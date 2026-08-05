@@ -6,5 +6,6 @@ import { RecordatoriosScheduler } from './recordatorios.scheduler';
 @Module({
   controllers: [NotificacionesPushController],
   providers: [NotificacionesPushService, RecordatoriosScheduler],
+  exports: [NotificacionesPushService],
 })
 export class NotificacionesPushModule {}
