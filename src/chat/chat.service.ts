@@ -9,6 +9,9 @@ import { MensajeDto } from './dto/mensaje.dto';
 import { ChatGateway } from './chat.gateway';
 import { ChatPresenceService } from './chat-presence.service';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
+
+const LARGO_PREVIA_PUSH = 80;
 
 const SALA_GRUPAL = 'grupal';
 // Ajuste: vigencia diferenciada — el grupal se purga más seguido (mucho más
@@ -30,6 +33,7 @@ export class ChatService {
     private prisma: PrismaService,
     private gateway: ChatGateway,
     private presencia: ChatPresenceService,
+    private notificacionesPushService: NotificacionesPushService,
   ) {}
 
   salaIndividual(id1: number, id2: number): string {
@@ -353,6 +357,32 @@ export class ChatService {
     return { ok: true };
   }
 
+  // Silenciar solo afecta el push del sistema (ver notificarPush) — el
+  // mensaje en vivo por WebSocket sigue llegando igual mientras la app está
+  // abierta, exactamente como el "silenciar" de WhatsApp.
+  async actualizarSilenciado(
+    sala: string,
+    miembroId: number,
+    silenciado: boolean,
+  ) {
+    this.verificarAcceso(sala, miembroId);
+    await this.prisma.lecturaChat.upsert({
+      where: { miembroId_sala: { miembroId, sala } },
+      create: { miembroId, sala, leidoHasta: new Date(0), silenciado },
+      update: { silenciado },
+    });
+    return { ok: true, silenciado };
+  }
+
+  async obtenerSilenciado(sala: string, miembroId: number) {
+    this.verificarAcceso(sala, miembroId);
+    const lectura = await this.prisma.lecturaChat.findUnique({
+      where: { miembroId_sala: { miembroId, sala } },
+      select: { silenciado: true },
+    });
+    return { silenciado: lectura?.silenciado ?? false };
+  }
+
   async enviarMensaje(
     sala: string,
     autorId: number,
@@ -457,7 +487,59 @@ export class ChatService {
       }
     }
 
+    await this.notificarPush(sala, autorId, mensaje.autor.nombre, texto);
+
     return resultado;
+  }
+
+  // Push real (llega con la app cerrada/pantalla bloqueada) — solo a quien
+  // no tenga el socket conectado ahora mismo (ya le llegó en vivo) ni tenga
+  // esta sala silenciada.
+  private async notificarPush(
+    sala: string,
+    autorId: number,
+    autorNombre: string,
+    texto: string,
+  ) {
+    let destinatarios: number[];
+    const par = this.parseSalaIndividual(sala);
+    if (par) {
+      destinatarios = [par[0] === autorId ? par[1] : par[0]];
+    } else if (sala === SALA_GRUPAL) {
+      const miembros = await this.prisma.miembro.findMany({
+        where: { id: { not: autorId } },
+        select: { id: true },
+      });
+      destinatarios = miembros.map((m) => m.id);
+    } else {
+      return;
+    }
+
+    const candidatos = destinatarios.filter(
+      (id) => !this.presencia.estaConectado(id),
+    );
+    if (candidatos.length === 0) return;
+
+    const lecturas = await this.prisma.lecturaChat.findMany({
+      where: { sala, miembroId: { in: candidatos } },
+      select: { miembroId: true, silenciado: true },
+    });
+    const silenciados = new Set(
+      lecturas.filter((l) => l.silenciado).map((l) => l.miembroId),
+    );
+    const finales = candidatos.filter((id) => !silenciados.has(id));
+    if (finales.length === 0) return;
+
+    const previa =
+      texto.length > LARGO_PREVIA_PUSH
+        ? `${texto.slice(0, LARGO_PREVIA_PUSH)}…`
+        : texto;
+
+    await this.notificacionesPushService.enviarAMiembros(finales, {
+      titulo: sala === SALA_GRUPAL ? `${autorNombre} (grupal)` : autorNombre,
+      cuerpo: previa || 'Te envió un adjunto',
+      url: `/chat/${sala}`,
+    });
   }
 
   async reaccionar(mensajeId: number, miembroId: number, emoji: string) {

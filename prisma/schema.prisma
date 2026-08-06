@@ -556,6 +556,9 @@ model LecturaChat {
   sala           String
   leidoHasta     DateTime
   entregadoHasta DateTime?
+  // Silenciar notificaciones push de esta conversación (por persona, no
+  // afecta el mensaje en vivo por WebSocket, solo el push del sistema).
+  silenciado     Boolean   @default(false)
 
   @@unique([miembroId, sala])
 }

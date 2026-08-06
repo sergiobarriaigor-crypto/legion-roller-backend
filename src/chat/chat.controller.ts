@@ -18,6 +18,7 @@ import { ReaccionDto } from './dto/reaccion.dto';
 import { ReenviarDto } from './dto/reenviar.dto';
 import { CrearEncuestaDto } from './dto/crear-encuesta.dto';
 import { VotarEncuestaDto } from './dto/votar-encuesta.dto';
+import { SilenciarDto } from './dto/silenciar.dto';
 
 interface RequestConUsuario {
   user: { id: number; rol: string };
@@ -73,6 +74,27 @@ export class ChatController {
   @Post('mensajes/:sala/marcar-leido')
   marcarLeido(@Req() req: RequestConUsuario, @Param('sala') sala: string) {
     return this.chatService.marcarLeido(sala, req.user.id);
+  }
+
+  @Get('mensajes/:sala/silenciar')
+  obtenerSilenciado(
+    @Req() req: RequestConUsuario,
+    @Param('sala') sala: string,
+  ) {
+    return this.chatService.obtenerSilenciado(sala, req.user.id);
+  }
+
+  @Post('mensajes/:sala/silenciar')
+  actualizarSilenciado(
+    @Req() req: RequestConUsuario,
+    @Param('sala') sala: string,
+    @Body() dto: SilenciarDto,
+  ) {
+    return this.chatService.actualizarSilenciado(
+      sala,
+      req.user.id,
+      dto.silenciado,
+    );
   }
 
   @Delete('mensajes/:id')
