@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from '../chat/chat.service';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { CrearPostDto } from './dto/crear-post.dto';
 import { ActualizarPostDto } from './dto/actualizar-post.dto';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
@@ -14,12 +15,14 @@ const DIAS_VIGENCIA_POST = 7;
 const MAX_FOTOS_POR_POST = 3;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 const MAX_DESTINATARIOS_COMPARTIR = 5;
+const LARGO_PREVIA_PUSH = 80;
 
 @Injectable()
 export class PostsService {
   constructor(
     private prisma: PrismaService,
     private chat: ChatService,
+    private notificacionesPushService: NotificacionesPushService,
   ) {}
 
   async listar(autorId?: number) {
@@ -214,12 +217,15 @@ export class PostsService {
     texto: string,
     respuestaAId?: number,
   ) {
-    await this.obtenerOFallar(postId);
+    const post = await this.obtenerOFallar(postId);
 
+    const original =
+      respuestaAId !== undefined
+        ? await this.prisma.comentarioPost.findUnique({
+            where: { id: respuestaAId },
+          })
+        : null;
     if (respuestaAId !== undefined) {
-      const original = await this.prisma.comentarioPost.findUnique({
-        where: { id: respuestaAId },
-      });
       if (!original || original.postId !== postId) {
         throw new NotFoundException('El comentario que respondes no existe');
       }
@@ -234,6 +240,20 @@ export class PostsService {
       data: { postId, autorId, texto, respuestaAId },
       include: { autor: { select: { id: true, nombre: true, fotoUrl: true } } },
     });
+
+    const destinatarioId = original ? original.autorId : post.autorId;
+    if (destinatarioId !== autorId) {
+      const previa =
+        texto.length > LARGO_PREVIA_PUSH
+          ? `${texto.slice(0, LARGO_PREVIA_PUSH)}…`
+          : texto;
+      await this.notificacionesPushService.enviarAMiembros([destinatarioId], {
+        titulo: comentario.autor.nombre,
+        cuerpo: previa,
+        url: `/post?post=${postId}&comentario=${comentario.id}`,
+      });
+    }
+
     return {
       id: comentario.id,
       miembroId: comentario.autor.id,

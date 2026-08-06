@@ -10,6 +10,9 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
+
+const LARGO_PREVIA_PUSH = 80;
 
 interface JwtPayload {
   sub: number;
@@ -36,6 +39,7 @@ export class HistoriasGateway implements OnGatewayConnection {
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
+    private notificacionesPushService: NotificacionesPushService,
   ) {}
 
   handleConnection(client: SocketAutenticado) {
@@ -117,6 +121,31 @@ export class HistoriasGateway implements OnGatewayConnection {
       respuestaAId,
       createdAt: comentario.createdAt.toISOString(),
     });
+
+    const objetivoAutorId = respuestaAId
+      ? (
+          await this.prisma.comentarioHistoria.findUnique({
+            where: { id: respuestaAId },
+            select: { autorId: true },
+          })
+        )?.autorId
+      : (
+          await this.prisma.historia.findUnique({
+            where: { id: data.historiaId },
+            select: { autorId: true },
+          })
+        )?.autorId;
+    if (objetivoAutorId && objetivoAutorId !== miembroId) {
+      const previa =
+        texto.length > LARGO_PREVIA_PUSH
+          ? `${texto.slice(0, LARGO_PREVIA_PUSH)}…`
+          : texto;
+      await this.notificacionesPushService.enviarAMiembros([objetivoAutorId], {
+        titulo: client.data.nombre ?? 'Alguien',
+        cuerpo: previa,
+        url: `/post?historia=${data.historiaId}&comentario=${comentario.id}`,
+      });
+    }
   }
 
   // A diferencia de "historia:mensaje" (burbuja efímera de 3s), un Eco se

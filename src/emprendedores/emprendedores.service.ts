@@ -6,16 +6,19 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from '../chat/chat.service';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { FichaEmprendedorDto } from './dto/ficha-emprendedor.dto';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const MAX_DESTINATARIOS_COMPARTIR = 5;
+const LARGO_PREVIA_PUSH = 80;
 
 @Injectable()
 export class EmprendedoresService {
   constructor(
     private prisma: PrismaService,
     private chat: ChatService,
+    private notificacionesPushService: NotificacionesPushService,
   ) {}
 
   private incluir() {
@@ -193,12 +196,15 @@ export class EmprendedoresService {
     texto: string,
     respuestaAId?: number,
   ) {
-    await this.obtenerOFallar(emprendedorId);
+    const ficha = await this.obtenerOFallar(emprendedorId);
 
+    const original =
+      respuestaAId !== undefined
+        ? await this.prisma.resenaEmprendedor.findUnique({
+            where: { id: respuestaAId },
+          })
+        : null;
     if (respuestaAId !== undefined) {
-      const original = await this.prisma.resenaEmprendedor.findUnique({
-        where: { id: respuestaAId },
-      });
       if (!original || original.emprendedorId !== emprendedorId) {
         throw new NotFoundException('La reseña que respondes no existe');
       }
@@ -213,6 +219,20 @@ export class EmprendedoresService {
       data: { emprendedorId, autorId, texto, respuestaAId },
       include: { autor: { select: { id: true, nombre: true, fotoUrl: true } } },
     });
+
+    const destinatarioId = original ? original.autorId : ficha.miembroId;
+    if (destinatarioId !== autorId) {
+      const previa =
+        texto.length > LARGO_PREVIA_PUSH
+          ? `${texto.slice(0, LARGO_PREVIA_PUSH)}…`
+          : texto;
+      await this.notificacionesPushService.enviarAMiembros([destinatarioId], {
+        titulo: resena.autor.nombre,
+        cuerpo: previa,
+        url: `/impulsa?emprendedor=${emprendedorId}&resena=${resena.id}`,
+      });
+    }
+
     return {
       id: resena.id,
       miembroId: resena.autor.id,

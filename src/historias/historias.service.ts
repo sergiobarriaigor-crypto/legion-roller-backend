@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearHistoriaDto } from './dto/crear-historia.dto';
 import { HistoriasGateway } from './historias.gateway';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { borrarArchivoSubido } from '../common/uploads-fs.util';
 
 const HORAS_VIGENCIA_HISTORIA = 24;
@@ -30,6 +31,7 @@ export class HistoriasService {
   constructor(
     private prisma: PrismaService,
     private gateway: HistoriasGateway,
+    private notificacionesPushService: NotificacionesPushService,
   ) {}
 
   private limiteVigencia() {
@@ -217,7 +219,7 @@ export class HistoriasService {
       }
     }
 
-    return this.prisma.historia.create({
+    const historia = await this.prisma.historia.create({
       data: {
         ...datosHistoria,
         autorId,
@@ -232,8 +234,24 @@ export class HistoriasService {
             }
           : undefined,
       },
-      include: { menciones: true },
+      include: {
+        menciones: true,
+        autor: { select: { nombre: true } },
+      },
     });
+
+    const idsMencionados = (menciones ?? [])
+      .map((m) => m.miembroId)
+      .filter((id) => id !== autorId);
+    if (idsMencionados.length > 0) {
+      await this.notificacionesPushService.enviarAMiembros(idsMencionados, {
+        titulo: historia.autor.nombre,
+        cuerpo: 'Te etiquetó en una historia',
+        url: '/post',
+      });
+    }
+
+    return historia;
   }
 
   async listarAgrupadas(miembroIdActual: number) {
