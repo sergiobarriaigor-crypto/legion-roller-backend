@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
 import { combinarFechaHoraChile } from '../common/fecha-chile.util';
+import { MapaGateway } from './mapa.gateway';
 
 const HORAS_VIGENCIA_PATINANDO = 4;
 const HORAS_ESTADO = 8;
@@ -40,7 +41,10 @@ const DISTANCIA_MINIMA_ASISTENCIA_KM = 3;
 
 @Injectable()
 export class MapaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mapaGateway: MapaGateway,
+  ) {}
 
   async activarPatinando(miembroId: number, dto: UbicacionDto) {
     const modo = dto.modo ?? 'patinando';
@@ -62,11 +66,40 @@ export class MapaService {
         ...(vacioLargo ? { iniciadoEn: new Date() } : {}),
       },
     });
+
+    // Retransmite en vivo por socket a quien tenga el mapa abierto -- ver
+    // mapa.gateway.ts. Respeta modoOculto igual que patinandoAhora() (un
+    // usuario oculto se sigue guardando/actualizando, pero nunca se emite a
+    // los demás).
+    const miembro = await this.prisma.miembro.findUnique({
+      where: { id: miembroId },
+      select: {
+        nombre: true,
+        fotoUrl: true,
+        estadoTexto: true,
+        estadoSetAt: true,
+        modoOculto: true,
+      },
+    });
+    if (miembro && !miembro.modoOculto) {
+      this.mapaGateway.emitirUbicacion({
+        miembroId,
+        nombre: miembro.nombre,
+        fotoUrl: miembro.fotoUrl,
+        estado: this.estadoVigente(miembro),
+        lat: ubicacion.lat,
+        lon: ubicacion.lon,
+        modo: ubicacion.modo,
+        iniciadoEn: ubicacion.iniciadoEn,
+      });
+    }
+
     return ubicacion;
   }
 
   async terminarPatinando(miembroId: number) {
     await this.prisma.ubicacionActiva.deleteMany({ where: { miembroId } });
+    this.mapaGateway.emitirDetencion(miembroId);
     return { mensaje: 'Dejaste de compartir tu ubicación' };
   }
 
