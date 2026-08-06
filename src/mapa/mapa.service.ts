@@ -39,6 +39,13 @@ const VENTANA_ANTES_ASISTENCIA_MIN = 30;
 const VENTANA_DESPUES_ASISTENCIA_MIN = 20;
 const DISTANCIA_MINIMA_ASISTENCIA_KM = 3;
 
+// Mismo criterio que KM_MOVIMIENTO_SIGNIFICATIVO en MapaView.tsx (frontend) —
+// duplicado acá porque este proyecto no comparte código entre front/back (ver
+// comentario de RADIO_ASISTENCIA_KM arriba). Se usa para distinguir "se movió
+// de verdad" de "solo mandó otro ping" al decidir si resetear el reloj de
+// inactividad (ver mapa-inactividad.scheduler.ts).
+const KM_MOVIMIENTO_SIGNIFICATIVO = 0.03; // ~30 metros
+
 @Injectable()
 export class MapaService {
   constructor(
@@ -56,6 +63,17 @@ export class MapaService {
       Date.now() - existente.actualizadoEn.getTime() >
         MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION * 60 * 1000;
 
+    // Aviso de inactividad por push (ver mapa-inactividad.scheduler.ts):
+    // movimientoEn solo avanza si este ping representa un desplazamiento
+    // real respecto a la última posición guardada, a diferencia de
+    // actualizadoEn (que el upsert de abajo actualiza siempre, con cada
+    // ping, se haya movido o no). Si sí se movió, también se resetea
+    // avisoInactividadEnviado para que, si vuelve a quedarse quieto, le
+    // llegue un aviso nuevo.
+    const seMovioDeVerdad =
+      !existente ||
+      this.distanciaHaversineKm(existente, dto) >= KM_MOVIMIENTO_SIGNIFICATIVO;
+
     const ubicacion = await this.prisma.ubicacionActiva.upsert({
       where: { miembroId },
       create: { miembroId, lat: dto.lat, lon: dto.lon, modo },
@@ -64,6 +82,9 @@ export class MapaService {
         lon: dto.lon,
         modo,
         ...(vacioLargo ? { iniciadoEn: new Date() } : {}),
+        ...(seMovioDeVerdad
+          ? { movimientoEn: new Date(), avisoInactividadEnviado: false }
+          : {}),
       },
     });
 

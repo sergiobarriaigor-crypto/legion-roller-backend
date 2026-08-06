@@ -167,6 +167,13 @@ model UbicacionActiva {
   // mostrar "hace X min" desde que activó el modo, a diferencia de actualizadoEn.
   iniciadoEn    DateTime @default(now())
   actualizadoEn DateTime @updatedAt
+  // Aviso de inactividad por push (backup del aviso en pantalla de MapaView,
+  // que solo corre mientras la app está en primer plano -- ver
+  // mapa-inactividad.scheduler.ts). A diferencia de actualizadoEn (que se
+  // actualiza con cada ping, incluso estando quieto), movimientoEn solo
+  // avanza cuando activarPatinando() detecta un desplazamiento real (>30m).
+  movimientoEn             DateTime @default(now())
+  avisoInactividadEnviado  Boolean  @default(false)
 }
 
 // Fase 3: historial de recorridos grabados (sección 5 y 11 del PDF).
