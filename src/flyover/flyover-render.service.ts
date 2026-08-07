@@ -128,8 +128,29 @@ export class FlyoverRenderService {
       ],
     });
 
+    // Diagnóstico: un timeout esperando window.__mapaListo no dice POR QUÉ
+    // (¿WebGL falló al iniciar? ¿no llegó a unpkg.com/openfreemap.org desde
+    // Railway? ¿otra excepción de JS?) -- se junta consola + errores de
+    // página + requests fallidos de la página para poder verlo en errorMsg
+    // sin necesitar acceso a los logs de Railway.
+    const diagnostico: string[] = [];
+
     try {
       const page = await navegador.newPage();
+      page.on('console', (msg) => {
+        diagnostico.push(`console.${msg.type()}: ${msg.text()}`);
+      });
+      page.on('pageerror', (err: unknown) => {
+        diagnostico.push(
+          `pageerror: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+      page.on('requestfailed', (req) => {
+        diagnostico.push(
+          `requestfailed: ${req.url()} (${req.failure()?.errorText ?? 'sin detalle'})`,
+        );
+      });
+
       await page.setViewport({
         width: ANCHO_VIDEO,
         height: ALTO_VIDEO,
@@ -166,6 +187,12 @@ export class FlyoverRenderService {
           path: join(dirTemporal, nombreFrame),
         });
       }
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : String(err);
+      const detalle = diagnostico.slice(-10).join(' | ');
+      throw new Error(
+        detalle ? `${mensaje} -- diagnóstico: ${detalle}` : mensaje,
+      );
     } finally {
       await navegador.close().catch(() => {});
     }
