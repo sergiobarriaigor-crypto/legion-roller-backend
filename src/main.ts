@@ -19,6 +19,13 @@ async function bootstrap() {
   app.enableCors();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // Página vanilla que carga Puppeteer para renderizar el video flyover 3D
+  // (ver flyover-render.service.ts) -- servida por el propio backend porque
+  // Puppeteer necesita algo 100% autocontenido en este proceso, sin depender
+  // del despliegue aparte del frontend en Vercel.
+  app.useStaticAssets(join(process.cwd(), 'public-flyover'), {
+    prefix: '/flyover-render/',
+  });
   await app.listen(process.env.PORT ?? 4000);
 }
 bootstrap();

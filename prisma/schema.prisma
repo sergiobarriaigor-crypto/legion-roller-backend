@@ -79,6 +79,7 @@ model Miembro {
 
   ubicacionActiva          UbicacionActiva?
   recorridos               Recorrido[]
+  videosFlyover            VideoFlyover[]
   asistenciasRodada        AsistenciaRodada[]
   rsvps                    RsvpRespuesta[]
   posts                    Post[]
@@ -197,6 +198,34 @@ model Recorrido {
   createdAt   DateTime @default(now())
 
   asistencia AsistenciaRodada?
+  flyovers   VideoFlyover[]
+}
+
+// Video "flyover" 3D generado en el servidor (Puppeteer + MapLibre headless +
+// ffmpeg) a partir del trazado de un Recorrido. Existe porque el modo 3D
+// interactivo (Mapa3D.tsx) reveló que muchos celulares del club no soportan
+// WebGL/GPU -- acá el render pesado lo hace el backend y el resultado es un
+// .mp4 plano que cualquier dispositivo reproduce. No es 1:1 con @unique en
+// recorridoId: puede haber más de una fila por ruta a lo largo del tiempo
+// (reintento tras error, o se vuelve a pedir tras purgarse a los 15 días) --
+// el service siempre resuelve "la más reciente" al consultar estado.
+model VideoFlyover {
+  id          Int       @id @default(autoincrement())
+  recorridoId Int
+  recorrido   Recorrido @relation(fields: [recorridoId], references: [id])
+  miembroId   Int
+  miembro     Miembro   @relation(fields: [miembroId], references: [id])
+
+  // "pendiente" (en cola) | "procesando" (worker activo) | "listo" (videoUrl
+  // con contenido) | "error" (errorMsg con el motivo, incluye "vencido" tras
+  // la purga de 15 días)
+  estado      String  @default("pendiente")
+  videoUrl    String?
+  errorMsg    String?
+  duracionSeg Int?
+
+  createdAt     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
 }
 
 // Ajuste post-Fase 12: asistencia confirmada a una rodada (reglas de validación

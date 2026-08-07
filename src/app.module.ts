@@ -16,6 +16,7 @@ import { HistoriasModule } from './historias/historias.module';
 import { NotificacionesPushModule } from './notificaciones-push/notificaciones-push.module';
 import { ClimaModule } from './clima/clima.module';
 import { CalendarioModule } from './calendario/calendario.module';
+import { FlyoverModule } from './flyover/flyover.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CalendarioModule } from './calendario/calendario.module';
     NotificacionesPushModule,
     ClimaModule,
     CalendarioModule,
+    FlyoverModule,
   ],
   controllers: [AppController],
   providers: [AppService],

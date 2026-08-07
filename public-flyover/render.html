@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Flyover render</title>
+<script src="https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; }
+  /* Resolución final del video (vertical 9:16, 720p) -- Puppeteer setea el
+     viewport a este mismo tamaño, sin escalar, para que el screenshot
+     coincida 1:1 con lo que ffmpeg va a codificar. */
+  #map { width: 720px; height: 1280px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  // Página vanilla sin build step a propósito: Puppeteer sobre un build de
+  // Next sería mucho más frágil y pesado de arrancar por request. Solo
+  // necesita dibujar el mapa 3D y moverse por keyframes fijos -- nada de
+  // React acá. Node (flyover-render.service.ts) empuja datos vía
+  // page.evaluate; esta página nunca llama de vuelta a Node.
+  var map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    center: [0, 0],
+    zoom: 15,
+    pitch: 60,
+    interactive: false,
+    attributionControl: false,
+  });
+
+  window.__mapaListo = false;
+  map.on('load', function () {
+    window.__mapaListo = true;
+  });
+
+  // Dibuja el trazado de la ruta como una línea dorada sobre el mapa 3D
+  // (mismo color #C99A3D que usa el resto de la app para rutas).
+  window.__dibujarRuta = function (geojson) {
+    map.addSource('ruta-flyover', { type: 'geojson', data: geojson });
+    map.addLayer({
+      id: 'ruta-flyover',
+      type: 'line',
+      source: 'ruta-flyover',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#C99A3D', 'line-width': 5 },
+    });
+  };
+
+  // Posiciona la cámara de forma síncrona (sin animación) y resuelve recién
+  // cuando MapLibre terminó de pintar el frame (evento 'idle') -- esto es lo
+  // que desacopla el tiempo real de renderizado de la duración final del
+  // video: no importa cuánto tarde cada frame, Node espera a que esté listo
+  // antes de capturar el screenshot y pedir el siguiente.
+  window.__jumpTo = function (keyframe) {
+    return new Promise(function (resolve) {
+      map.once('idle', function () {
+        resolve();
+      });
+      map.jumpTo({
+        center: keyframe.center,
+        zoom: keyframe.zoom,
+        pitch: keyframe.pitch,
+        bearing: keyframe.bearing,
+      });
+    });
+  };
+</script>
+</body>
+</html>
