@@ -26,6 +26,14 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'public-flyover'), {
     prefix: '/flyover-render/',
   });
+  // MapLibre GL JS v6 no publica un build UMD (global de script clásico),
+  // solo módulos ES (.mjs) -- cargarlo desde un CDN (unpkg) con la URL del
+  // build viejo devolvía 404, y Chrome bloqueaba esa respuesta como ORB.
+  // Se sirve el paquete instalado en node_modules directo, sin depender de
+  // ningún CDN externo para esto.
+  app.useStaticAssets(join(process.cwd(), 'node_modules/maplibre-gl/dist'), {
+    prefix: '/flyover-render/vendor/',
+  });
   await app.listen(process.env.PORT ?? 4000);
 }
 bootstrap();

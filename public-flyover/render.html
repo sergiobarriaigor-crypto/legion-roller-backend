@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <title>Flyover render</title>
-<script src="https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.js"></script>
-<link href="https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="/flyover-render/vendor/maplibre-gl.css" rel="stylesheet" />
 <style>
   html, body { margin: 0; padding: 0; }
   /* Resolución final del video (vertical 9:16, 720p) -- Puppeteer setea el
@@ -15,13 +14,20 @@
 </head>
 <body>
 <div id="map"></div>
-<script>
+<script type="module">
+  // MapLibre GL JS v6 no publica build UMD (script clásico con global
+  // `maplibregl`) -- solo módulos ES. Se importa el .mjs servido por el
+  // propio backend (node_modules/maplibre-gl/dist, ver main.ts), sin
+  // depender de ningún CDN externo para esto.
+  //
   // Página vanilla sin build step a propósito: Puppeteer sobre un build de
   // Next sería mucho más frágil y pesado de arrancar por request. Solo
   // necesita dibujar el mapa 3D y moverse por keyframes fijos -- nada de
   // React acá. Node (flyover-render.service.ts) empuja datos vía
   // page.evaluate; esta página nunca llama de vuelta a Node.
-  var map = new maplibregl.Map({
+  import { Map as MaplibreMap } from '/flyover-render/vendor/maplibre-gl.mjs';
+
+  var map = new MaplibreMap({
     container: 'map',
     style: 'https://tiles.openfreemap.org/styles/liberty',
     center: [0, 0],
