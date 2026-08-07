@@ -223,6 +223,11 @@ model VideoFlyover {
   videoUrl    String?
   errorMsg    String?
   duracionSeg Int?
+  // "edificios" (MapLibre + OpenFreeMap Liberty, edificios 3D extruidos) |
+  // "satelital" (foto satelital Esri inclinada, sin edificios 3D reales --
+  // se ve mejor en zonas con poca data de edificios en OpenStreetMap, como
+  // Puerto Montt/Puerto Varas).
+  estilo      String  @default("edificios")
 
   createdAt     DateTime @default(now())
   actualizadoEn DateTime @updatedAt

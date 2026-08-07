@@ -27,9 +27,47 @@
   // page.evaluate; esta página nunca llama de vuelta a Node.
   import { Map as MaplibreMap } from '/flyover-render/vendor/maplibre-gl.mjs';
 
+  // Estilo "satelital": mismas dos capas satelitales que ya usa el mapa en
+  // vivo y la tarjeta de recorrido (MapaView.tsx / tarjetaRecorrido.ts) --
+  // Esri World Imagery (foto) + Reference/World_Boundaries_and_Places
+  // (calles/nombres encima), gratis y sin API key. No hay edificios 3D reales
+  // acá (sería necesaria una malla de elevación que no existe gratis) -- es
+  // una foto aérea inclinada, pero se ve consistentemente bien en cualquier
+  // parte del mundo, a diferencia de los edificios vectoriales (pobres en
+  // zonas con poca data de OpenStreetMap, como Puerto Montt/Puerto Varas).
+  var ESTILO_SATELITAL = {
+    version: 8,
+    sources: {
+      'esri-satelite': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+      },
+      'esri-etiquetas': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+      },
+    },
+    layers: [
+      { id: 'satelite', type: 'raster', source: 'esri-satelite' },
+      { id: 'etiquetas', type: 'raster', source: 'esri-etiquetas' },
+    ],
+  };
+
+  var estiloElegido = new URLSearchParams(location.search).get('estilo');
+  var estiloMapa =
+    estiloElegido === 'satelital'
+      ? ESTILO_SATELITAL
+      : 'https://tiles.openfreemap.org/styles/liberty';
+
   var map = new MaplibreMap({
     container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: estiloMapa,
     center: [0, 0],
     zoom: 15,
     pitch: 60,

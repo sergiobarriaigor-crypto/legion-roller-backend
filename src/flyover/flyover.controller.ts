@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FlyoverService } from './flyover.service';
+import { SolicitarFlyoverDto } from './dto/solicitar-flyover.dto';
 
 interface RequestConUsuario {
   user: { id: number };
@@ -23,8 +25,13 @@ export class FlyoverController {
   solicitar(
     @Req() req: RequestConUsuario,
     @Param('recorridoId', ParseIntPipe) recorridoId: number,
+    @Body() dto: SolicitarFlyoverDto,
   ) {
-    return this.flyoverService.solicitarGeneracion(req.user.id, recorridoId);
+    return this.flyoverService.solicitarGeneracion(
+      req.user.id,
+      recorridoId,
+      dto.estilo,
+    );
   }
 
   @Get('recorrido/:recorridoId')

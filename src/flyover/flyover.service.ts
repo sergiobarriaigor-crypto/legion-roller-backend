@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FlyoverRenderService } from './flyover-render.service';
+import type { EstiloFlyover } from './dto/solicitar-flyover.dto';
 
 // Orquestación + cola en memoria (liviano, sin Puppeteer/ffmpeg acá -- ver
 // FlyoverRenderService para el pipeline pesado). No hay Redis/Bull en el
@@ -22,7 +23,11 @@ export class FlyoverService {
     private renderService: FlyoverRenderService,
   ) {}
 
-  async solicitarGeneracion(userId: number, recorridoId: number) {
+  async solicitarGeneracion(
+    userId: number,
+    recorridoId: number,
+    estilo: EstiloFlyover = 'edificios',
+  ) {
     const recorrido = await this.prisma.recorrido.findUnique({
       where: { id: recorridoId },
     });
@@ -42,7 +47,7 @@ export class FlyoverService {
     if (enCurso) return enCurso;
 
     const nuevo = await this.prisma.videoFlyover.create({
-      data: { recorridoId, miembroId: userId, estado: 'pendiente' },
+      data: { recorridoId, miembroId: userId, estado: 'pendiente', estilo },
     });
     this.encolar(nuevo.id);
     return nuevo;

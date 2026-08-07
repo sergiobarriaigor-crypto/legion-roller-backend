@@ -62,7 +62,7 @@ export class FlyoverRenderService {
         join(tmpdir(), `flyover-${videoFlyoverId}-`),
       );
 
-      await this.capturarFrames(puntos, keyframes, dirTemporal);
+      await this.capturarFrames(puntos, keyframes, dirTemporal, job.estilo);
 
       const nombreArchivo = `${Date.now()}-${Math.round(Math.random() * 1e9)}.mp4`;
       const rutaFinal = join(process.cwd(), 'uploads', nombreArchivo);
@@ -109,6 +109,7 @@ export class FlyoverRenderService {
     puntos: PuntoGps[],
     keyframes: ReturnType<typeof calcularKeyframes>,
     dirTemporal: string,
+    estilo: string,
   ): Promise<void> {
     const puerto = process.env.PORT ?? 4000;
     const navegador = await puppeteer.launch({
@@ -156,10 +157,10 @@ export class FlyoverRenderService {
         height: ALTO_VIDEO,
         deviceScaleFactor: 1,
       });
-      await page.goto(`http://localhost:${puerto}/flyover-render/render.html`, {
-        waitUntil: 'domcontentloaded',
-        timeout: TIMEOUT_CARGA_MS,
-      });
+      await page.goto(
+        `http://localhost:${puerto}/flyover-render/render.html?estilo=${encodeURIComponent(estilo)}`,
+        { waitUntil: 'domcontentloaded', timeout: TIMEOUT_CARGA_MS },
+      );
       await page.waitForFunction('window.__mapaListo === true', {
         timeout: TIMEOUT_CARGA_MS,
       });
