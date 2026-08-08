@@ -30,11 +30,11 @@
   // Estilo "satelital": mismas dos capas satelitales que ya usa el mapa en
   // vivo y la tarjeta de recorrido (MapaView.tsx / tarjetaRecorrido.ts) --
   // Esri World Imagery (foto) + Reference/World_Boundaries_and_Places
-  // (calles/nombres encima), gratis y sin API key. No hay edificios 3D reales
-  // acá (sería necesaria una malla de elevación que no existe gratis) -- es
-  // una foto aérea inclinada, pero se ve consistentemente bien en cualquier
-  // parte del mundo, a diferencia de los edificios vectoriales (pobres en
-  // zonas con poca data de OpenStreetMap, como Puerto Montt/Puerto Varas).
+  // (calles/nombres encima), gratis y sin API key, más una fuente de
+  // elevación real (ver 'terreno-dem' abajo). Sigue sin haber edificios 3D
+  // vectoriales acá (eso queda exclusivo del estilo Liberty con edificios),
+  // pero el terreno real sí muestra el relieve verdadero (cerros, costa) en
+  // vez de una foto aérea completamente plana e inclinada.
   var ESTILO_SATELITAL = {
     version: 8,
     sources: {
@@ -52,11 +52,38 @@
         ],
         tileSize: 256,
       },
+      // AWS Terrain Tiles (formato "Terrarium"): gratis, sin API key, sin
+      // registro -- mismo criterio que Esri/OpenFreeMap ya usados acá. Es
+      // un servicio externo gratuito sin SLA formal: si algún tile de
+      // elevación falla, MapLibre simplemente lo trata como plano ahí, sin
+      // romper el resto del render.
+      'terreno-dem': {
+        type: 'raster-dem',
+        tiles: [
+          'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+        ],
+        tileSize: 256,
+        encoding: 'terrarium',
+        maxzoom: 15,
+      },
     },
     layers: [
       { id: 'satelite', type: 'raster', source: 'esri-satelite' },
       { id: 'etiquetas', type: 'raster', source: 'esri-etiquetas' },
     ],
+    // exaggeration > 1 a propósito: el relieve real de Puerto Montt/Puerto
+    // Varas es de cerros suaves, no montañas -- sin exagerar un poco se
+    // notaría muy poco en un video de unos segundos.
+    terrain: { source: 'terreno-dem', exaggeration: 1.5 },
+    // Sin esto, el horizonte de una cámara inclinada con terreno real se ve
+    // con un corte duro contra el vacío -- el degradé lo disimula. Colores
+    // acordes al tema navy/dorado del resto de la app.
+    sky: {
+      'sky-color': '#0b121c',
+      'horizon-color': '#8ea6c9',
+      'fog-color': '#c9d6e8',
+      'sky-horizon-blend': 0.5,
+    },
   };
 
   var estiloElegido = new URLSearchParams(location.search).get('estilo');
