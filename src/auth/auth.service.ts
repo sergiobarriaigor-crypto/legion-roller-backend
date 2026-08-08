@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegistroDto } from './dto/registro.dto';
@@ -80,6 +82,27 @@ export class AuthService {
     const claveValida = await bcrypt.compare(dto.clave, miembro.passwordHash);
     if (!claveValida) {
       throw new UnauthorizedException('Correo o contraseña incorrectos');
+    }
+
+    // Cuenta eliminada: el correo ya fue reemplazado por un placeholder al
+    // eliminar (ver eliminarMiembro), así que en la práctica este chequeo
+    // nunca debería alcanzarse por correo original -- se deja igual como
+    // defensa en profundidad.
+    if (miembro.eliminadoEn) {
+      throw new UnauthorizedException('Correo o contraseña incorrectos');
+    }
+
+    if (miembro.bloqueadoHasta && miembro.bloqueadoHasta > new Date()) {
+      const fecha = miembro.bloqueadoHasta.toLocaleString('es-CL', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      const motivo = miembro.bloqueadoMotivo
+        ? `: ${miembro.bloqueadoMotivo}`
+        : '.';
+      throw new ForbiddenException(
+        `Tu cuenta está bloqueada hasta ${fecha}${motivo}`,
+      );
     }
 
     return this.firmarToken(miembro);
@@ -197,7 +220,65 @@ export class AuthService {
         rol: true,
         categoria: true,
         createdAt: true,
+        bloqueadoHasta: true,
+        bloqueadoMotivo: true,
+        eliminadoEn: true,
       },
     });
+  }
+
+  // Moderación (ver comentario en schema.prisma sobre Miembro): un admin no
+  // puede bloquear ni eliminar a otro admin -- mismo criterio que ya aplica
+  // el frontend para el selector de categoría, ahora también forzado acá.
+  async bloquearMiembro(id: number, dias: number, motivo?: string) {
+    const miembro = await this.prisma.miembro.findUnique({ where: { id } });
+    if (!miembro || miembro.rol === 'admin') {
+      throw new ForbiddenException('No se puede bloquear a este miembro.');
+    }
+    const bloqueadoHasta = new Date(Date.now() + dias * 24 * 60 * 60 * 1000);
+    await this.prisma.miembro.update({
+      where: { id },
+      data: { bloqueadoHasta, bloqueadoMotivo: motivo ?? null },
+    });
+    return { mensaje: 'Miembro bloqueado', bloqueadoHasta };
+  }
+
+  async desbloquearMiembro(id: number) {
+    await this.prisma.miembro.update({
+      where: { id },
+      data: { bloqueadoHasta: null, bloqueadoMotivo: null },
+    });
+    return { mensaje: 'Miembro desbloqueado' };
+  }
+
+  // Anonimiza en vez de borrar: el contenido ya publicado (posts, mensajes,
+  // rutas, reseñas) sigue visible para no romper hilos ni conversaciones
+  // grupales de terceros, pero deja de tener nombre/foto/datos de contacto
+  // reales. El correo se reemplaza por un placeholder único (en vez de
+  // null, porque sigue siendo @unique) para que ya no pueda iniciar sesión
+  // con su correo original; passwordHash también se invalida como defensa
+  // adicional.
+  async eliminarMiembro(id: number) {
+    const miembro = await this.prisma.miembro.findUnique({ where: { id } });
+    if (!miembro || miembro.rol === 'admin') {
+      throw new ForbiddenException('No se puede eliminar a este miembro.');
+    }
+    const claveInutil = await bcrypt.hash(randomBytes(16).toString('hex'), 10);
+    await this.prisma.miembro.update({
+      where: { id },
+      data: {
+        nombre: 'Usuario eliminado',
+        correo: `eliminado-${id}@legion-roller.local`,
+        telefono: null,
+        fotoUrl: null,
+        ciudad: null,
+        fechaNacimiento: null,
+        passwordHash: claveInutil,
+        bloqueadoHasta: null,
+        bloqueadoMotivo: null,
+        eliminadoEn: new Date(),
+      },
+    });
+    return { mensaje: 'Cuenta eliminada' };
   }
 }

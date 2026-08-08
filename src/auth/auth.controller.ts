@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -13,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegistroDto } from './dto/registro.dto';
 import { AprobarSolicitudDto } from './dto/aprobar-solicitud.dto';
 import { CambiarCategoriaDto } from './dto/cambiar-categoria.dto';
+import { BloquearMiembroDto } from './dto/bloquear-miembro.dto';
 import {
   ConfirmarCodigoDto,
   EnviarCodigoDto,
@@ -90,5 +92,29 @@ export class AuthController {
     @Body() dto: CambiarCategoriaDto,
   ) {
     return this.authService.cambiarCategoria(id, dto.categoria);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('miembros/:id/bloquear')
+  bloquear(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: BloquearMiembroDto,
+  ) {
+    return this.authService.bloquearMiembro(id, dto.dias, dto.motivo);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('miembros/:id/desbloquear')
+  desbloquear(@Param('id', ParseIntPipe) id: number) {
+    return this.authService.desbloquearMiembro(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('miembros/:id')
+  eliminar(@Param('id', ParseIntPipe) id: number) {
+    return this.authService.eliminarMiembro(id);
   }
 }

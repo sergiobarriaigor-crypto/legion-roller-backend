@@ -11,6 +11,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { obtenerEstadoCuenta } from '../auth/estado-cuenta.util';
 import { ChatPresenceService } from './chat-presence.service';
 
 interface JwtPayload {
@@ -48,7 +49,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private presencia: ChatPresenceService,
   ) {}
 
-  handleConnection(client: SocketAutenticado) {
+  async handleConnection(client: SocketAutenticado) {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
       client.disconnect();
@@ -56,6 +57,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
+      const estado = await obtenerEstadoCuenta(this.prisma, payload.sub);
+      if (!estado.activa) {
+        this.logger.warn(
+          'Conexión de socket rechazada: cuenta bloqueada o eliminada',
+        );
+        client.disconnect();
+        return;
+      }
       client.data.miembroId = payload.sub;
       client.data.nombre = payload.nombre;
       void client.join(salaPersonal(payload.sub));

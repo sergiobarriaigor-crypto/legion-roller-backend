@@ -6,6 +6,8 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
+import { PrismaService } from '../prisma/prisma.service';
+import { obtenerEstadoCuenta } from '../auth/estado-cuenta.util';
 
 interface JwtPayload {
   sub: number;
@@ -38,9 +40,12 @@ export class MapaGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(MapaGateway.name);
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
-  handleConnection(client: SocketAutenticado) {
+  async handleConnection(client: SocketAutenticado) {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
       client.disconnect();
@@ -48,6 +53,14 @@ export class MapaGateway implements OnGatewayConnection {
     }
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
+      const estado = await obtenerEstadoCuenta(this.prisma, payload.sub);
+      if (!estado.activa) {
+        this.logger.warn(
+          'Conexión de socket rechazada: cuenta bloqueada o eliminada',
+        );
+        client.disconnect();
+        return;
+      }
       client.data.miembroId = payload.sub;
       client.data.nombre = payload.nombre;
     } catch {

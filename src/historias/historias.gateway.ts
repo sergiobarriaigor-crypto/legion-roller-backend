@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { obtenerEstadoCuenta } from '../auth/estado-cuenta.util';
 import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 
 const LARGO_PREVIA_PUSH = 80;
@@ -42,7 +43,7 @@ export class HistoriasGateway implements OnGatewayConnection {
     private notificacionesPushService: NotificacionesPushService,
   ) {}
 
-  handleConnection(client: SocketAutenticado) {
+  async handleConnection(client: SocketAutenticado) {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
       client.disconnect();
@@ -50,6 +51,14 @@ export class HistoriasGateway implements OnGatewayConnection {
     }
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
+      const estado = await obtenerEstadoCuenta(this.prisma, payload.sub);
+      if (!estado.activa) {
+        this.logger.warn(
+          'Conexión de socket rechazada: cuenta bloqueada o eliminada',
+        );
+        client.disconnect();
+        return;
+      }
       client.data.miembroId = payload.sub;
       client.data.nombre = payload.nombre;
     } catch {

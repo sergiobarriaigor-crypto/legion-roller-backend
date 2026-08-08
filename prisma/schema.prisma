@@ -33,6 +33,18 @@ model Miembro {
   // la app según la categoría (todavía no implementado, solo el dato).
   categoria String?
 
+  // Moderación desde Admin: bloqueo temporal (se levanta solo al vencer
+  // bloqueadoHasta) y eliminación permanente. Eliminar NO borra el
+  // contenido ya publicado (posts, mensajes, rutas, reseñas) -- se
+  // anonimiza esta fila (nombre/correo/foto) y ese contenido sigue visible
+  // para no romper hilos ni conversaciones grupales de terceros. Ambos
+  // estados se verifican en cada request autenticado (JwtStrategy) y en
+  // los gateways de socket, no solo al hacer login, para que tengan efecto
+  // inmediato sobre sesiones ya activas.
+  bloqueadoHasta  DateTime?
+  bloqueadoMotivo String?
+  eliminadoEn     DateTime?
+
   // Fase 7: estado tipo "story" visible en el mapa (vigencia HORAS_ESTADO = 8h)
   estadoTexto String?
   estadoSetAt DateTime?
