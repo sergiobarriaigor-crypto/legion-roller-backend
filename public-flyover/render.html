@@ -100,8 +100,10 @@
     pitch: 60,
     // MapLibre limita el pitch a 60° por defecto -- sin esto, los keyframes
     // con pitch más alto (ver PITCH_CAMARA en geo-flyover.util.ts, cámara
-    // "pegada al piso") quedarían recortados en silencio a 60 igual.
-    maxPitch: 85,
+    // "pegada al piso") quedarían recortados en silencio a 60 igual. 75 en
+    // vez de un valor más extremo: un pitch=78 real rompió la generación en
+    // Railway (ver comentario en geo-flyover.util.ts).
+    maxPitch: 75,
     interactive: false,
     attributionControl: false,
   });

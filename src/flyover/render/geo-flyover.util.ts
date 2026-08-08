@@ -24,19 +24,22 @@ const FPS = 24;
 const DURACION_MIN_SEG = 8;
 const DURACION_MAX_SEG = 25;
 const FACTOR_SEG_POR_KM = 2;
-// Pitch/zoom altos a propósito para que la cámara se sienta "pegada al
-// piso" en vez de una vista aérea inclinada. Lo ideal sería una cámara
-// libre con altura explícita en metros (maplibregl.FreeCameraOptions), pero
-// MapLibre GL JS v6 (la versión instalada, ver package.json) eliminó esa
-// API de su build público -- no está ni en el .d.ts ni en el bundle. Con el
-// modelo de cámara estándar (center/zoom/pitch/bearing), acercar el pitch a
-// la horizontal es lo que geométricamente baja la altura de la cámara sobre
-// el punto que mira (a pitch=90 la cámara quedaría a la misma altura que el
-// suelo, mirando de frente). 78° es un punto medio: MapLibre marca >60°
-// como "experimental" (setMaxPitch en render.html), pero con terreno real
-// (raster-dem) ya cargado no se vieron artefactos raros en pruebas.
-const ZOOM_CAMARA = 17.2;
-const PITCH_CAMARA = 78;
+// Pitch/zoom más altos que el original (60/16.5) a propósito para que la
+// cámara se sienta más pegada al piso en vez de una vista aérea inclinada.
+// Lo ideal sería una cámara libre con altura explícita en metros
+// (maplibregl.FreeCameraOptions), pero MapLibre GL JS v6 (la versión
+// instalada, ver package.json) eliminó esa API de su build público -- no
+// está ni en el .d.ts ni en el bundle. Con el modelo de cámara estándar
+// (center/zoom/pitch/bearing), acercar el pitch a la horizontal es lo que
+// geométricamente baja la altura de la cámara sobre el punto que mira.
+//
+// Un primer intento con pitch=78/zoom=17.2 rompió la generación en Railway
+// (ffmpeg fallaba al codificar -- probablemente frames corruptos por el
+// software-rendering de WebGL, sin GPU real, bajo más carga con terreno
+// real a ese ángulo). 70/16.8 es un paso más conservador: sigue notándose
+// más bajo que el original, con menos riesgo de saturar el renderizado.
+const ZOOM_CAMARA = 16.8;
+const PITCH_CAMARA = 70;
 // Qué tan adelante en el trazado mirar para calcular el rumbo de la cámara
 // -- muy corto y el rumbo tiembla con el ruido del GPS punto a punto.
 const ADELANTO_RUMBO_KM = 0.05;
