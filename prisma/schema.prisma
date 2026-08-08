@@ -105,6 +105,7 @@ model Miembro {
   // Ajuste post-Fase 12: notificaciones push reales (Web Push), una fila por
   // dispositivo/navegador suscrito.
   suscripcionesPush SuscripcionPush[]
+  tokensPushNativo  TokenPushNativo[]
 
   // Ajuste: asistencias confirmadas a eventos (charlas/capacitaciones/actividades).
   asistenciasEvento AsistenciaEvento[]
@@ -135,6 +136,20 @@ model SuscripcionPush {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  createdAt DateTime @default(now())
+}
+
+// Token de FCM (Firebase Cloud Messaging) de la app nativa (Android, vía
+// Capacitor) -- separado de SuscripcionPush porque es un mecanismo de envío
+// completamente distinto (FCM vs. Web Push/VAPID), no un dato opcional del
+// mismo modelo. NotificacionesPushService envía a ambos en paralelo, así
+// que el resto de la app (comentarios, chat, calendario, etc.) no necesita
+// saber cuál usa cada miembro.
+model TokenPushNativo {
+  id        Int      @id @default(autoincrement())
+  miembroId Int
+  miembro   Miembro  @relation(fields: [miembroId], references: [id])
+  token     String   @unique
   createdAt DateTime @default(now())
 }
 

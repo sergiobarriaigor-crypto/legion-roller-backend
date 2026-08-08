@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificacionesPushService } from './notificaciones-push.service';
 import { PushSuscripcionDto } from './dto/push-suscripcion.dto';
 import { NotificarmePushDto } from './dto/notificarme-push.dto';
+import { TokenNativoDto } from './dto/token-nativo.dto';
 
 interface RequestConUsuario {
   user: { id: number };
@@ -38,5 +39,24 @@ export class NotificacionesPushController {
   @Post('notificarme')
   notificarme(@Req() req: RequestConUsuario, @Body() dto: NotificarmePushDto) {
     return this.notificacionesPushService.enviarAMiembros([req.user.id], dto);
+  }
+
+  // Registra el token FCM de este dispositivo (app Android nativa vía
+  // Capacitor) para el miembro autenticado. Ver camaraNativa.ts/geolocacionNativa.ts
+  // por el mismo criterio de "Capacitor.isNativePlatform()" en el frontend.
+  @Post('token-nativo')
+  registrarTokenNativo(
+    @Req() req: RequestConUsuario,
+    @Body() dto: TokenNativoDto,
+  ) {
+    return this.notificacionesPushService.guardarTokenNativo(
+      req.user.id,
+      dto.token,
+    );
+  }
+
+  @Delete('token-nativo')
+  eliminarTokenNativo(@Query('token') token: string) {
+    return this.notificacionesPushService.eliminarTokenNativo(token);
   }
 }
