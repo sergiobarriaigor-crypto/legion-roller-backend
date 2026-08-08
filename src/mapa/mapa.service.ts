@@ -28,7 +28,7 @@ const MINUTOS_VACIO_CUENTA_COMO_NUEVA_SESION = 3;
 // criterio que ya existe en el frontend para "movimiento significativo"
 // (~30m) — un poco más generoso acá porque esto decide si CUENTA la sesión
 // entera, no solo un tramo.
-const DISTANCIA_MINIMA_GUARDAR_KM = 0.05;
+const DISTANCIA_MINIMA_GUARDAR_KM = 0.075;
 
 // Reglas de "Asistencia Confirmada" a una rodada (ajuste post-Fase 12): un
 // recorrido solo genera AsistenciaRodada si el usuario marcó "Voy" antes,
