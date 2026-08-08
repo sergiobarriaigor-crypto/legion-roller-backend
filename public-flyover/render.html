@@ -98,6 +98,10 @@
     center: [0, 0],
     zoom: 15,
     pitch: 60,
+    // MapLibre limita el pitch a 60° por defecto -- sin esto, los keyframes
+    // con pitch más alto (ver PITCH_CAMARA en geo-flyover.util.ts, cámara
+    // "pegada al piso") quedarían recortados en silencio a 60 igual.
+    maxPitch: 85,
     interactive: false,
     attributionControl: false,
   });
