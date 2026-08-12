@@ -6,10 +6,13 @@
 <link href="/flyover-render/vendor/maplibre-gl.css" rel="stylesheet" />
 <style>
   html, body { margin: 0; padding: 0; }
-  /* Resolución final del video (vertical 9:16, 720p) -- Puppeteer setea el
-     viewport a este mismo tamaño, sin escalar, para que el screenshot
-     coincida 1:1 con lo que ffmpeg va a codificar. */
-  #map { width: 720px; height: 1280px; }
+  /* Resolución final del video (vertical 9:16) -- tiene que coincidir
+     siempre con ANCHO_VIDEO/ALTO_VIDEO en flyover-render.service.ts, que es
+     lo que Puppeteer usa para el viewport (sin escalar, para que el
+     screenshot coincida 1:1 con lo que ffmpeg va a codificar). Bajada de
+     720x1280 a 540x960 para reducir memoria de video por cuadro -- ver
+     comentario junto a esas constantes. */
+  #map { width: 540px; height: 960px; }
 </style>
 </head>
 <body>

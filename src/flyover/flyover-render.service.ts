@@ -24,8 +24,15 @@ interface VentanaRenderFlyover extends Window {
   __jumpTo: (keyframe: unknown) => Promise<void>;
 }
 
-const ANCHO_VIDEO = 720;
-const ALTO_VIDEO = 1280;
+// Bajado de 720x1280 -- un error real visto en producción ("WebGL:
+// INVALID_OPERATION... object does not belong to this context", "too many
+// errors") es la firma típica de que el proceso de GPU (software, sin
+// hardware real en Railway) se queda sin memoria y se reinicia a mitad de
+// un video de 192 cuadros, dejando huérfanos los objetos WebGL de la
+// sesión anterior. Menos píxeles por cuadro = menos memoria de video por
+// cuadro. Sigue siendo perfectamente nítido para compartir en redes.
+const ANCHO_VIDEO = 540;
+const ALTO_VIDEO = 960;
 // Timeout generoso para que la página cargue MapLibre + el estilo de
 // OpenFreeMap -- en el smoke-test de Railway (ver plan) hay que confirmar
 // que el software-rendering de WebGL no lo haga tardar más de esto.
