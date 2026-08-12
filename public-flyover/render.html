@@ -116,8 +116,12 @@
     window.__mapaListo = true;
   });
 
-  // Dibuja el trazado de la ruta como una línea dorada sobre el mapa 3D
-  // (mismo color #C99A3D que usa el resto de la app para rutas).
+  // Dibuja el trazado de la ruta -- amarillo bien saturado (no el dorado
+  // #C99A3D que usa el resto de la app) a pedido explícito, para que
+  // resalte más contra el terreno/satélite de fondo. El geojson que llega
+  // acá es solo para dejar la fuente lista de entrada; el contenido real se
+  // pisa en cada __jumpTo() de abajo con la línea "hasta ahora" del cuadro,
+  // así que no importa si arranca con la ruta completa o vacía.
   window.__dibujarRuta = function (geojson) {
     map.addSource('ruta-flyover', { type: 'geojson', data: geojson });
     map.addLayer({
@@ -125,7 +129,7 @@
       type: 'line',
       source: 'ruta-flyover',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#C99A3D', 'line-width': 5 },
+      paint: { 'line-color': '#FFD500', 'line-width': 5 },
     });
   };
 
@@ -134,11 +138,23 @@
   // que desacopla el tiempo real de renderizado de la duración final del
   // video: no importa cuánto tarde cada frame, Node espera a que esté listo
   // antes de capturar el screenshot y pedir el siguiente.
+  //
+  // keyframe.lineaHastaAqui (ver geo-flyover.util.ts) trae las coordenadas
+  // ya recorridas hasta este cuadro exacto -- se pisa la fuente antes de
+  // mover la cámara para que la línea "se vaya dibujando" en sincro con el
+  // avance, en vez de aparecer completa desde el primer cuadro.
   window.__jumpTo = function (keyframe) {
     return new Promise(function (resolve) {
       map.once('idle', function () {
         resolve();
       });
+      if (keyframe.lineaHastaAqui) {
+        map.getSource('ruta-flyover').setData({
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: keyframe.lineaHastaAqui },
+        });
+      }
       map.jumpTo({
         center: keyframe.center,
         zoom: keyframe.zoom,

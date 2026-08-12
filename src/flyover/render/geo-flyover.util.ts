@@ -18,6 +18,12 @@ export interface KeyframeCamara {
   zoom: number;
   pitch: number;
   bearing: number;
+  // Coordenadas [lon, lat] recorridas hasta este cuadro (puntos reales del
+  // trazado ya superados + el punto interpolado exacto de "center" al
+  // final) -- para dibujar la línea del recorrido progresivamente en
+  // render.html, sincronizada con el avance real de la cámara, en vez de
+  // mostrarla completa desde el primer cuadro.
+  lineaHastaAqui: [number, number][];
 }
 
 const FPS = 24;
@@ -153,6 +159,13 @@ export function calcularKeyframes(
   const keyframes: KeyframeCamara[] = [];
   let bearingSuavizado = 0;
   let bearingInicializado = false;
+  // Puntos reales (no interpolados) ya superados, en orden -- crece de a
+  // uno a medida que la distancia acumulada de cada cuadro los va dejando
+  // atrás. Arranca con el primer punto de la ruta.
+  const puntosRecorridos: [number, number][] = [
+    [acumulados[0].lon, acumulados[0].lat],
+  ];
+  let cursorAcumulados = 1;
 
   for (let i = 0; i < totalFrames; i++) {
     const fraccion = totalFrames > 1 ? i / (totalFrames - 1) : 1;
@@ -162,6 +175,17 @@ export function calcularKeyframes(
       acumulados,
       distanciaActualKm + ADELANTO_RUMBO_KM,
     );
+
+    while (
+      cursorAcumulados < acumulados.length &&
+      acumulados[cursorAcumulados].acumuladaKm <= distanciaActualKm
+    ) {
+      puntosRecorridos.push([
+        acumulados[cursorAcumulados].lon,
+        acumulados[cursorAcumulados].lat,
+      ]);
+      cursorAcumulados++;
+    }
 
     const rumboObjetivo =
       punto.lat === puntoAdelante.lat && punto.lon === puntoAdelante.lon
@@ -185,6 +209,7 @@ export function calcularKeyframes(
       zoom: ZOOM_CAMARA,
       pitch: PITCH_CAMARA,
       bearing: bearingSuavizado,
+      lineaHastaAqui: [...puntosRecorridos, [punto.lon, punto.lat]],
     });
   }
 
