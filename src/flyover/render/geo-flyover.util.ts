@@ -24,6 +24,13 @@ export interface KeyframeCamara {
   // render.html, sincronizada con el avance real de la cámara, en vez de
   // mostrarla completa desde el primer cuadro.
   lineaHastaAqui: [number, number][];
+  // 0-1: opacidad de la tarjeta de resumen (km/tiempo) sobre el mapa en
+  // render.html -- 0 durante toda la ruta y la apertura, sube a 1 recién en
+  // el cierre (ver calcularKeyframesFlyover). Viaja por cuadro (en vez de
+  // ser un simple booleano "mostrar/ocultar") para que el fundido se vea
+  // suave sin depender de una transición CSS -- acá cada jumpTo es una
+  // captura instantánea, no hay animación real entre cuadros.
+  opacidadResumen: number;
 }
 
 const FPS = 24;
@@ -210,10 +217,186 @@ export function calcularKeyframes(
       pitch: PITCH_CAMARA,
       bearing: bearingSuavizado,
       lineaHastaAqui: [...puntosRecorridos, [punto.lon, punto.lat]],
+      opacidadResumen: 0,
     });
   }
 
   return keyframes;
+}
+
+interface Bbox {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
+function calcularBbox(puntos: PuntoGps[]): Bbox {
+  let minLat = puntos[0].lat;
+  let maxLat = puntos[0].lat;
+  let minLon = puntos[0].lon;
+  let maxLon = puntos[0].lon;
+  for (const p of puntos) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  return { minLat, maxLat, minLon, maxLon };
+}
+
+// Resolución del video -- tiene que coincidir con ANCHO_VIDEO/ALTO_VIDEO en
+// flyover-render.service.ts. Se necesita acá (este archivo no tiene acceso
+// al DOM/MapLibre real) solo para estimar qué zoom deja todo el trazado
+// visible en la toma panorámica de apertura/cierre.
+const ANCHO_VIDEO_PX = 540;
+const ALTO_VIDEO_PX = 960;
+// Fracción del viewport que debería ocupar el trazado en la panorámica
+// (deja aire alrededor en vez de tocar los bordes).
+const MARGEN_PANORAMICA = 0.72;
+// Pitch de la toma panorámica de apertura/cierre -- bastante más plano que
+// PITCH_CAMARA (cámara "pegada al piso" de la ruta) para que se vea como
+// una vista aérea de ciudad/trazado completo, no como un cuadro más del
+// recorrido.
+const PITCH_PANORAMICA = 42;
+// La fórmula de zoom-para-ajustar de abajo es la clásica de vista CENITAL
+// plana (Google Maps/Mapbox) -- con pitch>0 la cámara en los hechos ve más
+// terreno hacia el fondo de lo que esa fórmula asume, así que restar acá da
+// margen de sobra en vez de arriesgarse a cortar el trazado en el video.
+const MARGEN_ZOOM_POR_PITCH = 1;
+const ZOOM_MAX_PANORAMICA = 18;
+
+// Fórmula estándar de "zoom para ajustar bounds" (la misma idea que usan
+// Google Maps/Mapbox internamente) -- mundo de tiles de 256px en zoom 0.
+function zoomParaAjustarBbox(bbox: Bbox): number {
+  function latRad(lat: number): number {
+    const sin = Math.sin((lat * Math.PI) / 180);
+    const radX2 = Math.log((1 + sin) / (1 - sin)) / 2;
+    return clamp(radX2, -Math.PI, Math.PI) / 2;
+  }
+  function zoomEje(pxDisponibles: number, fraccion: number): number {
+    if (fraccion <= 0) return ZOOM_MAX_PANORAMICA;
+    return Math.log2(pxDisponibles / 256 / fraccion);
+  }
+  const fraccionLat = (latRad(bbox.maxLat) - latRad(bbox.minLat)) / Math.PI;
+  const dLon = bbox.maxLon - bbox.minLon;
+  const fraccionLon = (dLon < 0 ? dLon + 360 : dLon) / 360;
+  const zoomLat = zoomEje(ALTO_VIDEO_PX * MARGEN_PANORAMICA, fraccionLat);
+  const zoomLon = zoomEje(ANCHO_VIDEO_PX * MARGEN_PANORAMICA, fraccionLon);
+  return clamp(
+    Math.min(zoomLat, zoomLon, ZOOM_MAX_PANORAMICA) - MARGEN_ZOOM_POR_PITCH,
+    1,
+    ZOOM_MAX_PANORAMICA,
+  );
+}
+
+function interpolarAngulo(desde: number, hasta: number, t: number): number {
+  return (desde + diferenciaAngular(desde, hasta) * t + 360) % 360;
+}
+
+// Suavizado tipo "ease in/out" (smoothstep) -- para que las tomas de
+// apertura/cierre aceleren y frenen en vez de moverse a velocidad
+// constante, más cinematográfico que la interpolación lineal usada para el
+// avance por la ruta (ahí lineal es correcto porque representa velocidad
+// real de desplazamiento).
+function suavizarT(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+function crearFramesTransicion(
+  desde: Pick<KeyframeCamara, 'center' | 'zoom' | 'pitch' | 'bearing'>,
+  hasta: Pick<KeyframeCamara, 'center' | 'zoom' | 'pitch' | 'bearing'>,
+  frames: number,
+  lineaFn: (tLineal: number) => [number, number][],
+  opacidadFn: (tLineal: number) => number,
+): KeyframeCamara[] {
+  const resultado: KeyframeCamara[] = [];
+  for (let i = 0; i < frames; i++) {
+    const tLineal = frames > 1 ? i / (frames - 1) : 1;
+    const t = suavizarT(tLineal);
+    resultado.push({
+      center: [
+        desde.center[0] + (hasta.center[0] - desde.center[0]) * t,
+        desde.center[1] + (hasta.center[1] - desde.center[1]) * t,
+      ],
+      zoom: desde.zoom + (hasta.zoom - desde.zoom) * t,
+      pitch: desde.pitch + (hasta.pitch - desde.pitch) * t,
+      bearing: interpolarAngulo(desde.bearing, hasta.bearing, t),
+      lineaHastaAqui: lineaFn(tLineal),
+      opacidadResumen: opacidadFn(tLineal),
+    });
+  }
+  return resultado;
+}
+
+// Cuánto dura cada tramo agregado a la ruta principal (calcularKeyframes):
+// apertura elevada sobre la zona -> acercamiento al inicio, y al llegar al
+// final, alejamiento a vista panorámica completa + resumen (km/tiempo).
+const DURACION_INTRO_SEG = 3;
+const DURACION_OUTRO_TRANSICION_SEG = 2.5;
+const DURACION_OUTRO_HOLD_SEG = 2.5;
+
+// Arma el video completo: apertura panorámica -> recorrido (calcularKeyframes,
+// sin tocar) -> alejamiento a panorámica completa con resumen. Separada de
+// calcularKeyframes (que sigue siendo la ruta "pura", sin apertura/cierre)
+// para no tocar esa función ya probada en producción -- esta solo la envuelve.
+export function calcularKeyframesFlyover(
+  puntos: PuntoGps[],
+  distanciaKm: number,
+): KeyframeCamara[] {
+  const principal = calcularKeyframes(puntos, distanciaKm);
+  const bbox = calcularBbox(puntos);
+  const centroBbox: [number, number] = [
+    (bbox.minLon + bbox.maxLon) / 2,
+    (bbox.minLat + bbox.maxLat) / 2,
+  ];
+  const panoramica = {
+    center: centroBbox,
+    zoom: zoomParaAjustarBbox(bbox),
+    pitch: PITCH_PANORAMICA,
+    bearing: 0,
+  };
+
+  const inicioRuta = principal[0];
+  const finRuta = principal[principal.length - 1];
+  const lineaCompleta: [number, number][] = puntos.map((p) => [p.lon, p.lat]);
+  // Línea degenerada (2 puntos idénticos) en vez de vacía -- geometry
+  // LineString de GeoJSON necesita al menos 2 posiciones; con 0 longitud no
+  // se ve trazo real, solo asegura que el source quede en un estado válido
+  // durante la apertura (antes de que arranque el recorrido real).
+  const lineaAntesDeArrancar: [number, number][] = [
+    inicioRuta.center,
+    inicioRuta.center,
+  ];
+
+  const framesIntro = crearFramesTransicion(
+    panoramica,
+    inicioRuta,
+    Math.round(FPS * DURACION_INTRO_SEG),
+    () => lineaAntesDeArrancar,
+    () => 0,
+  );
+  const framesOutroTransicion = crearFramesTransicion(
+    finRuta,
+    panoramica,
+    Math.round(FPS * DURACION_OUTRO_TRANSICION_SEG),
+    () => lineaCompleta,
+    (tLineal) => tLineal,
+  );
+  const framesOutroHold = crearFramesTransicion(
+    panoramica,
+    panoramica,
+    Math.round(FPS * DURACION_OUTRO_HOLD_SEG),
+    () => lineaCompleta,
+    () => 1,
+  );
+
+  return [
+    ...framesIntro,
+    ...principal,
+    ...framesOutroTransicion,
+    ...framesOutroHold,
+  ];
 }
 
 export function duracionSegDeKeyframes(keyframes: KeyframeCamara[]): number {

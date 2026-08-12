@@ -12,11 +12,47 @@
      screenshot coincida 1:1 con lo que ffmpeg va a codificar). Bajada de
      720x1280 a 540x960 para reducir memoria de video por cuadro -- ver
      comentario junto a esas constantes. */
+  #contenedor { position: relative; width: 540px; height: 960px; }
   #map { width: 540px; height: 960px; }
+  /* Tarjeta de resumen (km/tiempo) del cierre -- opacidad la controla
+     __jumpTo() por cuadro (ver keyframe.opacidadResumen en
+     geo-flyover.util.ts), no hay transición CSS: cada jumpTo es una
+     captura instantánea, el fundido ya viene interpolado desde Node. */
+  #resumen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(11,18,28,0) 45%, rgba(11,18,28,0.65) 100%);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  #resumen-km {
+    font-size: 40px;
+    font-weight: 700;
+    color: #FFD500;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  #resumen-tiempo {
+    margin-top: 6px;
+    font-size: 20px;
+    font-weight: 500;
+    color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="contenedor">
+  <div id="map"></div>
+  <div id="resumen">
+    <div id="resumen-km"></div>
+    <div id="resumen-tiempo"></div>
+  </div>
+</div>
 <script type="module">
   // MapLibre GL JS v6 no publica build UMD (script clásico con global
   // `maplibregl`) -- solo módulos ES. Se importa el .mjs servido por el
@@ -155,6 +191,9 @@
           geometry: { type: 'LineString', coordinates: keyframe.lineaHastaAqui },
         });
       }
+      if (typeof keyframe.opacidadResumen === 'number') {
+        document.getElementById('resumen').style.opacity = String(keyframe.opacidadResumen);
+      }
       map.jumpTo({
         center: keyframe.center,
         zoom: keyframe.zoom,
@@ -162,6 +201,13 @@
         bearing: keyframe.bearing,
       });
     });
+  };
+
+  // Texto de la tarjeta de resumen -- se fija una sola vez al arrancar (no
+  // cambia cuadro a cuadro), la opacidad la anima __jumpTo() por separado.
+  window.__prepararResumen = function (textoDistancia, textoTiempo) {
+    document.getElementById('resumen-km').textContent = textoDistancia;
+    document.getElementById('resumen-tiempo').textContent = textoTiempo;
   };
 </script>
 </body>

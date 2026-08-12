@@ -9,7 +9,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import {
-  calcularKeyframes,
+  calcularKeyframesFlyover,
   duracionSegDeKeyframes,
   FLYOVER_FPS,
   type PuntoGps,
@@ -22,6 +22,7 @@ const execFileAsync = promisify(execFile);
 interface VentanaRenderFlyover extends Window {
   __dibujarRuta: (geojson: unknown) => void;
   __jumpTo: (keyframe: unknown) => Promise<void>;
+  __prepararResumen: (textoDistancia: string, textoTiempo: string) => void;
 }
 
 // Bajado de 720x1280 -- un error real visto en producción ("WebGL:
@@ -87,12 +88,22 @@ export class FlyoverRenderService {
         throw new Error('El recorrido no tiene suficientes puntos GPS');
       }
 
-      const keyframes = calcularKeyframes(puntos, job.recorrido.distanciaKm);
+      const keyframes = calcularKeyframesFlyover(
+        puntos,
+        job.recorrido.distanciaKm,
+      );
       dirTemporal = await fs.mkdtemp(
         join(tmpdir(), `flyover-${videoFlyoverId}-`),
       );
 
-      await this.capturarFrames(puntos, keyframes, dirTemporal, job.estilo);
+      await this.capturarFrames(
+        puntos,
+        keyframes,
+        dirTemporal,
+        job.estilo,
+        job.recorrido.distanciaKm,
+        job.recorrido.duracionSeg,
+      );
 
       const nombreArchivo = `${Date.now()}-${Math.round(Math.random() * 1e9)}.mp4`;
       const rutaFinal = join(process.cwd(), 'uploads', nombreArchivo);
@@ -137,9 +148,11 @@ export class FlyoverRenderService {
 
   private async capturarFrames(
     puntos: PuntoGps[],
-    keyframes: ReturnType<typeof calcularKeyframes>,
+    keyframes: ReturnType<typeof calcularKeyframesFlyover>,
     dirTemporal: string,
     estilo: string,
+    distanciaKm: number,
+    duracionSegReal: number,
   ): Promise<void> {
     const puerto = process.env.PORT ?? 4000;
     const navegador = await puppeteer.launch({
@@ -211,6 +224,21 @@ export class FlyoverRenderService {
       await page.evaluate(
         (g) => (window as unknown as VentanaRenderFlyover).__dibujarRuta(g),
         geojson,
+      );
+
+      // Texto de la tarjeta de resumen del cierre (ver
+      // calcularKeyframesFlyover) -- mismo formato que ya usa el resto de
+      // la app para un Recorrido (MisRutasPanel.tsx: "X.XX km", "N min").
+      await page.evaluate(
+        (args) =>
+          (window as unknown as VentanaRenderFlyover).__prepararResumen(
+            args.textoDistancia,
+            args.textoTiempo,
+          ),
+        {
+          textoDistancia: `${distanciaKm.toFixed(2)} km`,
+          textoTiempo: `${Math.round(duracionSegReal / 60)} min`,
+        },
       );
 
       let timeoutsSeguidos = 0;
@@ -290,21 +318,25 @@ export class FlyoverRenderService {
     // ningún error explícito (solo el progreso cortado a mitad de camino).
     // El archivo final pesa un poco más a este preset, aceptable para un
     // video corto pensado para compartir en redes.
-    await execFileAsync(ffmpegPath as string, [
-      '-y',
-      '-framerate',
-      String(FLYOVER_FPS),
-      '-i',
-      join(dirTemporal, 'frame-%05d.png'),
-      '-vf',
-      `scale=${ANCHO_VIDEO}:${ALTO_VIDEO}`,
-      '-c:v',
-      'libx264',
-      '-preset',
-      'ultrafast',
-      '-pix_fmt',
-      'yuv420p',
-      rutaFinal,
-    ], { timeout: TIMEOUT_FFMPEG_MS });
+    await execFileAsync(
+      ffmpegPath as string,
+      [
+        '-y',
+        '-framerate',
+        String(FLYOVER_FPS),
+        '-i',
+        join(dirTemporal, 'frame-%05d.png'),
+        '-vf',
+        `scale=${ANCHO_VIDEO}:${ALTO_VIDEO}`,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'ultrafast',
+        '-pix_fmt',
+        'yuv420p',
+        rutaFinal,
+      ],
+      { timeout: TIMEOUT_FFMPEG_MS },
+    );
   }
 }

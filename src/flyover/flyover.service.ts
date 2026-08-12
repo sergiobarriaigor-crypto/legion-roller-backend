@@ -64,7 +64,8 @@ export class FlyoverService {
         where: { id: enCurso.id },
         data: {
           estado: 'error',
-          errorMsg: 'El intento anterior quedó huérfano (reinicio del servidor).',
+          errorMsg:
+            'El intento anterior quedó huérfano (reinicio del servidor).',
         },
       });
     }
