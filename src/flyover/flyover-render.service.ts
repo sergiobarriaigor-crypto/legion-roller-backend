@@ -38,6 +38,10 @@ const TIMEOUT_CARGA_MS = 30_000;
 // el job eventualmente termine en error en vez de quedar colgado sin
 // avisar ni permitir reintentar.
 const TIMEOUT_FRAME_MS = 15_000;
+// Red de seguridad para la codificación de ffmpeg -- ver -preset ultrafast
+// más abajo para el fix real (CPU/memoria), esto es solo para que un
+// cuelgue por otra causa termine en error en vez de para siempre.
+const TIMEOUT_FFMPEG_MS = 3 * 60 * 1000;
 
 @Injectable()
 export class FlyoverRenderService {
@@ -238,6 +242,13 @@ export class FlyoverRenderService {
     dirTemporal: string,
     rutaFinal: string,
   ): Promise<void> {
+    // -preset ultrafast: sin esto, libx264 usaba el preset por defecto
+    // ("medium"), que en el servidor sin GPU real de Railway codificaba a
+    // ~0.08x tiempo real -- suficientemente lento como para agotar memoria
+    // o CPU antes de terminar y que el proceso terminara matado sin dejar
+    // ningún error explícito (solo el progreso cortado a mitad de camino).
+    // El archivo final pesa un poco más a este preset, aceptable para un
+    // video corto pensado para compartir en redes.
     await execFileAsync(ffmpegPath as string, [
       '-y',
       '-framerate',
@@ -248,9 +259,11 @@ export class FlyoverRenderService {
       `scale=${ANCHO_VIDEO}:${ALTO_VIDEO}`,
       '-c:v',
       'libx264',
+      '-preset',
+      'ultrafast',
       '-pix_fmt',
       'yuv420p',
       rutaFinal,
-    ]);
+    ], { timeout: TIMEOUT_FFMPEG_MS });
   }
 }
