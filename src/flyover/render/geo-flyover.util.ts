@@ -33,7 +33,14 @@ export interface KeyframeCamara {
   opacidadResumen: number;
 }
 
-const FPS = 24;
+// Bajado de 24: el cuello de botella real de la generación es renderizar
+// cada cuadro (WebGL por software, sin GPU real en Railway) uno por uno en
+// secuencia -- menos cuadros por segundo de video = menos cuadros totales a
+// renderizar para la misma duración, reducción proporcional del tiempo de
+// generación. La cámara se mueve lento y suave acá (nada de paneos
+// bruscos), así que 18 fps no se nota como "entrecortado" en este contenido
+// puntual, a diferencia de contenido con movimiento rápido.
+const FPS = 18;
 const DURACION_MIN_SEG = 8;
 const DURACION_MAX_SEG = 50;
 const FACTOR_SEG_POR_KM = 2;
