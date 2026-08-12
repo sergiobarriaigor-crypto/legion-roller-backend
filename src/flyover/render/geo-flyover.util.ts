@@ -104,6 +104,75 @@ function clamp(valor: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, valor));
 }
 
+// El GPS de un teléfono nunca cae justo en la línea recta real -- jitter
+// lateral de unos metros hace zigzaguear el trazado crudo incluso en una
+// recta perfecta. La cámara del flyover sigue ese trazado punto a punto
+// (calcularKeyframes interpola sobre él), así que ese zigzag microscópico
+// en el mapa se ve amplificado en el video como si la cámara serpenteara
+// sin sentido. Simplificar antes de calcular keyframes (algoritmo
+// Douglas-Peucker) aplana los tramos rectos sin perder curvas reales -- una
+// curva de verdad se aleja más que la tolerancia de la línea entre sus
+// extremos y sus puntos se conservan.
+const TOLERANCIA_SIMPLIFICADO_KM = 0.01; // 10 metros
+
+// Distancia perpendicular de `punto` al segmento a-b, en km. Aproximación
+// plana (equirrectangular, con corrección de longitud por latitud) --
+// suficiente a esta escala (unas pocas decenas de metros como mucho), no
+// hace falta geometría esférica completa para comparar distancias dentro
+// de un mismo tramo corto.
+function distanciaPerpendicularKm(
+  punto: PuntoGps,
+  a: PuntoGps,
+  b: PuntoGps,
+): number {
+  const KM_POR_GRADO_LAT = 111.32;
+  const cosLat = Math.cos((a.lat * Math.PI) / 180);
+  const ax = a.lon * cosLat;
+  const ay = a.lat;
+  const bx = b.lon * cosLat;
+  const by = b.lat;
+  const px = punto.lon * cosLat;
+  const py = punto.lat;
+
+  const dx = bx - ax;
+  const dy = by - ay;
+  const largoCuadrado = dx * dx + dy * dy;
+  const t =
+    largoCuadrado > 0
+      ? clamp(((px - ax) * dx + (py - ay) * dy) / largoCuadrado, 0, 1)
+      : 0;
+  const proyX = ax + t * dx;
+  const proyY = ay + t * dy;
+  return Math.sqrt((px - proyX) ** 2 + (py - proyY) ** 2) * KM_POR_GRADO_LAT;
+}
+
+function simplificarRuta(puntos: PuntoGps[], toleranciaKm: number): PuntoGps[] {
+  if (puntos.length <= 2) return puntos;
+
+  let distanciaMaxima = 0;
+  let indiceMaximo = 0;
+  const inicio = puntos[0];
+  const fin = puntos[puntos.length - 1];
+  for (let i = 1; i < puntos.length - 1; i++) {
+    const d = distanciaPerpendicularKm(puntos[i], inicio, fin);
+    if (d > distanciaMaxima) {
+      distanciaMaxima = d;
+      indiceMaximo = i;
+    }
+  }
+
+  if (distanciaMaxima > toleranciaKm) {
+    const izquierda = simplificarRuta(
+      puntos.slice(0, indiceMaximo + 1),
+      toleranciaKm,
+    );
+    const derecha = simplificarRuta(puntos.slice(indiceMaximo), toleranciaKm);
+    return [...izquierda.slice(0, -1), ...derecha];
+  }
+
+  return [inicio, fin];
+}
+
 interface PuntoConAcumulado extends PuntoGps {
   acumuladaKm: number;
 }
@@ -341,9 +410,13 @@ const DURACION_OUTRO_HOLD_SEG = 2.5;
 // calcularKeyframes (que sigue siendo la ruta "pura", sin apertura/cierre)
 // para no tocar esa función ya probada en producción -- esta solo la envuelve.
 export function calcularKeyframesFlyover(
-  puntos: PuntoGps[],
+  puntosOriginales: PuntoGps[],
   distanciaKm: number,
 ): KeyframeCamara[] {
+  // simplificarRuta siempre conserva al menos el primer y último punto, así
+  // que esto nunca deja menos de 2 puntos si puntosOriginales ya tenía al
+  // menos 2 (ver validación al inicio de calcularKeyframes).
+  const puntos = simplificarRuta(puntosOriginales, TOLERANCIA_SIMPLIFICADO_KM);
   const principal = calcularKeyframes(puntos, distanciaKm);
   const bbox = calcularBbox(puntos);
   const centroBbox: [number, number] = [
