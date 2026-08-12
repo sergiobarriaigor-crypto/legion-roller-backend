@@ -48,6 +48,11 @@ const TIMEOUT_CARGA_MS = 30_000;
 // garantizar que el job eventualmente termine en error en vez de quedar
 // colgado sin avisar ni permitir reintentar.
 const TIMEOUT_FRAME_MS = 25_000;
+// Cuántos cuadros seguidos pueden colgarse (ver catch dentro del loop de
+// captura) antes de asumir que ya no es un tile puntual sino algo
+// realmente roto (WebGL caído, red completamente cortada) y abortar el job
+// en vez de esperar hasta 25s por cada uno de los ~192 cuadros restantes.
+const MAX_TIMEOUTS_SEGUIDOS = 5;
 // Red de seguridad para la codificación de ffmpeg -- ver -preset ultrafast
 // más abajo para el fix real (CPU/memoria), esto es solo para que un
 // cuelgue por otra causa termine en error en vez de para siempre.
@@ -205,15 +210,38 @@ export class FlyoverRenderService {
         geojson,
       );
 
+      let timeoutsSeguidos = 0;
       for (let i = 0; i < keyframes.length; i++) {
-        await this.conTimeout(
-          page.evaluate(
-            (kf) => (window as unknown as VentanaRenderFlyover).__jumpTo(kf),
-            keyframes[i],
-          ),
-          TIMEOUT_FRAME_MS,
-          `cuadro ${i}/${keyframes.length} tardó más de ${TIMEOUT_FRAME_MS / 1000}s (posible tile de terreno colgado)`,
-        );
+        try {
+          await this.conTimeout(
+            page.evaluate(
+              (kf) => (window as unknown as VentanaRenderFlyover).__jumpTo(kf),
+              keyframes[i],
+            ),
+            TIMEOUT_FRAME_MS,
+            `cuadro ${i}/${keyframes.length} tardó más de ${TIMEOUT_FRAME_MS / 1000}s (posible tile de terreno colgado)`,
+          );
+          timeoutsSeguidos = 0;
+        } catch (err) {
+          // Un tile puntual de AWS Terrain Tiles (servicio gratuito sin SLA)
+          // puede colgar un cuadro puntual (404, timeout de red) sin que
+          // haya nada realmente roto -- en vez de abortar los 192 cuadros
+          // por uno solo, se sigue con lo que ya esté pintado (cámara/línea
+          // ya se movieron con jumpTo antes de esperar 'idle', el frame
+          // solo puede quedar con algún tile de terreno de menos, invisible
+          // en un video en movimiento). Si se repite muchas veces seguidas
+          // sí es señal de algo realmente roto (WebGL caído, etc.) y ahí se
+          // aborta el job en vez de tardar horas cuadro por cuadro.
+          diagnostico.push(
+            `${err instanceof Error ? err.message : String(err)} (se sigue con el cuadro tal cual quedó pintado)`,
+          );
+          timeoutsSeguidos++;
+          if (timeoutsSeguidos >= MAX_TIMEOUTS_SEGUIDOS) {
+            throw new Error(
+              `${MAX_TIMEOUTS_SEGUIDOS} cuadros seguidos tardaron más de ${TIMEOUT_FRAME_MS / 1000}s -- probablemente algo roto más allá de un tile puntual`,
+            );
+          }
+        }
         const nombreFrame = `frame-${String(i).padStart(5, '0')}.png`;
         await page.screenshot({
           path: join(dirTemporal, nombreFrame),
