@@ -49,11 +49,18 @@ const TIMEOUT_CARGA_MS = 30_000;
 // garantizar que el job eventualmente termine en error en vez de quedar
 // colgado sin avisar ni permitir reintentar.
 const TIMEOUT_FRAME_MS = 25_000;
-// Cuántos cuadros seguidos pueden colgarse (ver catch dentro del loop de
-// captura) antes de asumir que ya no es un tile puntual sino algo
-// realmente roto (WebGL caído, red completamente cortada) y abortar el job
-// en vez de esperar hasta 25s por cada uno de los ~192 cuadros restantes.
-const MAX_TIMEOUTS_SEGUIDOS = 5;
+// Cuántos cuadros en TOTAL (no necesariamente seguidos, ver catch dentro
+// del loop de captura) pueden colgarse antes de asumir que ya no son tiles
+// puntuales sueltos sino algo realmente roto (servicio externo caído,
+// WebGL caído) y abortar el job. Contar seguidos en vez de total dejaba
+// pasar el caso real de tiles fallando salteados (uno tarda, el siguiente
+// anda bien...): el contador nunca llegaba a acumular una racha, así que
+// el job nunca abortaba, pero cada cuelgue salteado igual sumaba 25s
+// completos de espera -- una docena de esos a lo largo del video explica
+// fácilmente 10+ minutos sin que el job esté realmente "roto" del todo.
+// Con el total acotado, el peor caso queda en MAX_TIMEOUTS_TOTALES *
+// TIMEOUT_FRAME_MS de espera perdida como mucho, en vez de sin límite.
+const MAX_TIMEOUTS_TOTALES = 8;
 // Red de seguridad para la codificación de ffmpeg -- ver -preset ultrafast
 // más abajo para el fix real (CPU/memoria), esto es solo para que un
 // cuelgue por otra causa termine en error en vez de para siempre. Subido de
@@ -241,7 +248,17 @@ export class FlyoverRenderService {
         },
       );
 
-      let timeoutsSeguidos = 0;
+      // Cuenta TOTAL de cuadros que tardaron de más en todo el job -- no solo
+      // seguidos. Un tile puntual de AWS Terrain Tiles/Esri (servicios
+      // gratuitos sin SLA) que falla salteado (uno tarda, el siguiente anda
+      // bien, después otro tarda...) nunca acumulaba 2 seguidos, así que el
+      // job nunca abortaba pero cada cuelgue puntual sumaba igual los 25s
+      // completos de espera -- una docena de esos salteados a lo largo del
+      // video explica fácilmente 10+ minutos sin que nada esté realmente
+      // "roto" del todo. Contar el total (en vez de solo rachas seguidas)
+      // acota el peor caso a MAX_TIMEOUTS_TOTALES * TIMEOUT_FRAME_MS de
+      // espera perdida como mucho, en vez de sin límite.
+      let timeoutsTotales = 0;
       for (let i = 0; i < keyframes.length; i++) {
         try {
           await this.conTimeout(
@@ -252,24 +269,23 @@ export class FlyoverRenderService {
             TIMEOUT_FRAME_MS,
             `cuadro ${i}/${keyframes.length} tardó más de ${TIMEOUT_FRAME_MS / 1000}s (posible tile de terreno colgado)`,
           );
-          timeoutsSeguidos = 0;
         } catch (err) {
-          // Un tile puntual de AWS Terrain Tiles (servicio gratuito sin SLA)
-          // puede colgar un cuadro puntual (404, timeout de red) sin que
-          // haya nada realmente roto -- en vez de abortar los 192 cuadros
-          // por uno solo, se sigue con lo que ya esté pintado (cámara/línea
-          // ya se movieron con jumpTo antes de esperar 'idle', el frame
-          // solo puede quedar con algún tile de terreno de menos, invisible
-          // en un video en movimiento). Si se repite muchas veces seguidas
-          // sí es señal de algo realmente roto (WebGL caído, etc.) y ahí se
-          // aborta el job en vez de tardar horas cuadro por cuadro.
+          // Un tile puntual puede colgar un cuadro puntual (404, timeout de
+          // red) sin que haya nada realmente roto -- en vez de abortar todo
+          // el video por uno solo, se sigue con lo que ya esté pintado
+          // (cámara/línea ya se movieron con jumpTo antes de esperar 'idle',
+          // el frame solo puede quedar con algún tile de terreno de menos,
+          // invisible en un video en movimiento). Si se acumulan demasiados
+          // en todo el job sí es señal de algo realmente roto (o el servicio
+          // externo caído de verdad) y ahí se aborta en vez de tardar
+          // decenas de minutos cuadro por cuadro.
           diagnostico.push(
             `${err instanceof Error ? err.message : String(err)} (se sigue con el cuadro tal cual quedó pintado)`,
           );
-          timeoutsSeguidos++;
-          if (timeoutsSeguidos >= MAX_TIMEOUTS_SEGUIDOS) {
+          timeoutsTotales++;
+          if (timeoutsTotales >= MAX_TIMEOUTS_TOTALES) {
             throw new Error(
-              `${MAX_TIMEOUTS_SEGUIDOS} cuadros seguidos tardaron más de ${TIMEOUT_FRAME_MS / 1000}s -- probablemente algo roto más allá de un tile puntual`,
+              `${MAX_TIMEOUTS_TOTALES} cuadros tardaron más de ${TIMEOUT_FRAME_MS / 1000}s en todo el video -- probablemente algo roto más allá de un tile puntual`,
             );
           }
         }
