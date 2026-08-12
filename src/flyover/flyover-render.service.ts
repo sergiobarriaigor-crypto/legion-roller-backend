@@ -33,11 +33,14 @@ const TIMEOUT_CARGA_MS = 30_000;
 // Sin esto, un tile de terreno (AWS Terrain Tiles, ver render.html) que se
 // cuelga sin responder deja el job trabado en "procesando" para siempre --
 // map.once('idle') dentro de __jumpTo() nunca se resuelve, y no hay ningún
-// límite de tiempo por cuadro que lo saque de ahí. 15s por cuadro es
-// generoso (un cuadro normal tarda un par de segundos) pero garantiza que
-// el job eventualmente termine en error en vez de quedar colgado sin
-// avisar ni permitir reintentar.
-const TIMEOUT_FRAME_MS = 15_000;
+// límite de tiempo por cuadro que lo saque de ahí. AWS Terrain Tiles es un
+// servicio gratuito sin SLA (ver ESTILO_SATELITAL en render.html): un tile
+// puntual puede reintentar internamente antes de fallar (404) o de que
+// MapLibre siga sin él -- 25s (subido de 15s tras un caso real con un
+// cuadro que tardó justo eso) da más margen a esos reintentos sin dejar de
+// garantizar que el job eventualmente termine en error en vez de quedar
+// colgado sin avisar ni permitir reintentar.
+const TIMEOUT_FRAME_MS = 25_000;
 // Red de seguridad para la codificación de ffmpeg -- ver -preset ultrafast
 // más abajo para el fix real (CPU/memoria), esto es solo para que un
 // cuelgue por otra causa termine en error en vez de para siempre.
