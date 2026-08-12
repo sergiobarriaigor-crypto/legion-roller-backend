@@ -123,12 +123,17 @@ export class FlyoverRenderService {
     const navegador = await puppeteer.launch({
       headless: true,
       // Railway no tiene GPU -- estos flags fuerzan WebGL por software
-      // (ANGLE + SwiftShader). Confirmar/ajustar en el smoke-test real de
-      // Railway (ver plan): puede requerir --use-gl=swiftshader a secas, o
-      // que falten libs de Mesa en la imagen del contenedor.
+      // (ANGLE + SwiftShader). Chrome dejó de habilitar el fallback a
+      // SwiftShader automáticamente (queda como warning en consola:
+      // "Automatic fallback to software WebGL has been deprecated") -- sin
+      // --enable-unsafe-swiftshader, WebGL nunca termina de inicializar y
+      // el mapa jamás pinta nada, colgando el cuadro 0 para siempre (era
+      // la causa real detrás de todos los intentos fallidos anteriores,
+      // no el pitch/zoom ni el terreno específicamente).
       args: [
         '--use-gl=angle',
         '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
         '--enable-webgl',
         '--ignore-gpu-blocklist',
         '--disable-gpu-sandbox',
