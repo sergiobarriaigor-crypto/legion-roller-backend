@@ -28,7 +28,7 @@ export interface KeyframeCamara {
 
 const FPS = 24;
 const DURACION_MIN_SEG = 8;
-const DURACION_MAX_SEG = 25;
+const DURACION_MAX_SEG = 50;
 const FACTOR_SEG_POR_KM = 2;
 // Pitch/zoom más altos que el original (60/16.5) a propósito para que la
 // cámara se sienta más pegada al piso en vez de una vista aérea inclinada.

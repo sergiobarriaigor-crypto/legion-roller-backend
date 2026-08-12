@@ -55,8 +55,11 @@ const TIMEOUT_FRAME_MS = 25_000;
 const MAX_TIMEOUTS_SEGUIDOS = 5;
 // Red de seguridad para la codificación de ffmpeg -- ver -preset ultrafast
 // más abajo para el fix real (CPU/memoria), esto es solo para que un
-// cuelgue por otra causa termine en error en vez de para siempre.
-const TIMEOUT_FFMPEG_MS = 3 * 60 * 1000;
+// cuelgue por otra causa termine en error en vez de para siempre. Subido de
+// 3 a 5 min junto con DURACION_MAX_SEG (25->50, ver geo-flyover.util.ts):
+// las rutas más largas ahora pueden llegar a ~1200 cuadros (el doble de
+// antes) para codificar.
+const TIMEOUT_FFMPEG_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class FlyoverRenderService {
