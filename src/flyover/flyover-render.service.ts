@@ -30,6 +30,14 @@ const ALTO_VIDEO = 1280;
 // OpenFreeMap -- en el smoke-test de Railway (ver plan) hay que confirmar
 // que el software-rendering de WebGL no lo haga tardar más de esto.
 const TIMEOUT_CARGA_MS = 30_000;
+// Sin esto, un tile de terreno (AWS Terrain Tiles, ver render.html) que se
+// cuelga sin responder deja el job trabado en "procesando" para siempre --
+// map.once('idle') dentro de __jumpTo() nunca se resuelve, y no hay ningún
+// límite de tiempo por cuadro que lo saque de ahí. 15s por cuadro es
+// generoso (un cuadro normal tarda un par de segundos) pero garantiza que
+// el job eventualmente termine en error en vez de quedar colgado sin
+// avisar ni permitir reintentar.
+const TIMEOUT_FRAME_MS = 15_000;
 
 @Injectable()
 export class FlyoverRenderService {
@@ -179,9 +187,13 @@ export class FlyoverRenderService {
       );
 
       for (let i = 0; i < keyframes.length; i++) {
-        await page.evaluate(
-          (kf) => (window as unknown as VentanaRenderFlyover).__jumpTo(kf),
-          keyframes[i],
+        await this.conTimeout(
+          page.evaluate(
+            (kf) => (window as unknown as VentanaRenderFlyover).__jumpTo(kf),
+            keyframes[i],
+          ),
+          TIMEOUT_FRAME_MS,
+          `cuadro ${i}/${keyframes.length} tardó más de ${TIMEOUT_FRAME_MS / 1000}s (posible tile de terreno colgado)`,
         );
         const nombreFrame = `frame-${String(i).padStart(5, '0')}.png`;
         await page.screenshot({
@@ -197,6 +209,24 @@ export class FlyoverRenderService {
     } finally {
       await navegador.close().catch(() => {});
     }
+  }
+
+  // page.evaluate() de por sí no tiene timeout propio cuando la promesa que
+  // devuelve el navegador (acá, __jumpTo() esperando map.once('idle')) nunca
+  // se resuelve -- Puppeteer solo aplica timeout a la EJECUCIÓN del script,
+  // no a la promesa resultante. Sin este wrapper, un solo cuadro colgado
+  // cuelga todo el job para siempre.
+  private conTimeout<T>(
+    promesa: Promise<T>,
+    ms: number,
+    mensajeTimeout: string,
+  ): Promise<T> {
+    return Promise.race([
+      promesa,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(mensajeTimeout)), ms),
+      ),
+    ]);
   }
 
   private async codificarVideo(
