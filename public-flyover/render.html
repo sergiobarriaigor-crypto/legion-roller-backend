@@ -43,11 +43,24 @@
     color: #ffffff;
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
   }
+  /* Marca de agua fija en toda la duración del video (a diferencia de
+     #resumen, que solo aparece al final) -- sombra para que se distinga
+     tanto sobre fondos claros (calles) como oscuros (agua, sombras). */
+  #logo {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  }
 </style>
 </head>
 <body>
 <div id="contenedor">
   <div id="map"></div>
+  <img id="logo" src="/flyover-render/logo-legion-roller.png" alt="" />
   <div id="resumen">
     <div id="resumen-km"></div>
     <div id="resumen-tiempo"></div>
