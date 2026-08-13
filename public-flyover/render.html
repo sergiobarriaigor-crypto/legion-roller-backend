@@ -110,10 +110,17 @@
       { id: 'satelite', type: 'raster', source: 'esri-satelite' },
       { id: 'etiquetas', type: 'raster', source: 'esri-etiquetas' },
     ],
-    // exaggeration > 1 a propósito: el relieve real de Puerto Montt/Puerto
-    // Varas es de cerros suaves, no montañas -- sin exagerar un poco se
-    // notaría muy poco en un video de unos segundos.
-    terrain: { source: 'terreno-dem', exaggeration: 1.5 },
+    // Bajado de 1.5 a 1.0 (sin exagerar): MapLibre "envuelve" TODA capa
+    // sobre la malla de elevación cuando hay terreno 3D activo, incluida la
+    // línea del recorrido (ver __dibujarRuta más abajo) -- no solo el relieve
+    // visible. Justo en la costa, la resolución real del DEM gratuito
+    // (~10-30m/celda acá) no alcanza a capturar bien la transición
+    // tierra-agua, así que queda "escalonada"; con exageración 1.5 ese
+    // escalonado se notaba como saltos en zigzag en la línea del recorrido
+    // en tramos pegados al agua (reporte real: recorrido costero en Puerto
+    // Montt). Sin exagerar, el error de esa malla se ve mucho menos, a costa
+    // de que el relieve de los cerros se note un poco más plano.
+    terrain: { source: 'terreno-dem', exaggeration: 1.0 },
     // Sin esto, el horizonte de una cámara inclinada con terreno real se ve
     // con un corte duro contra el vacío -- el degradé lo disimula. Colores
     // acordes al tema navy/dorado del resto de la app.
