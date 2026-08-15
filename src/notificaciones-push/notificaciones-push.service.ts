@@ -16,6 +16,13 @@ interface PayloadPush {
   url?: string;
 }
 
+// Debe coincidir con CANAL_ALERTAS en frontend/src/lib/pushNativo.ts, que
+// crea este canal en el dispositivo con importancia máxima -- sin decirle
+// a FCM que use ese canal, Android manda la notificación al canal por
+// defecto (importancia media) y no aparece emergente ni en pantalla de
+// bloqueo con el contenido visible.
+const CANAL_ALERTAS_ANDROID = 'legion_alertas';
+
 @Injectable()
 export class NotificacionesPushService {
   private readonly logger = new Logger(NotificacionesPushService.name);
@@ -144,6 +151,14 @@ export class NotificacionesPushService {
         tokens,
         notification: { title: payload.titulo, body: payload.cuerpo },
         data: payload.url ? { url: payload.url } : undefined,
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: CANAL_ALERTAS_ANDROID,
+            priority: 'max',
+            visibility: 'public',
+          },
+        },
       });
 
       const tokensInvalidos: string[] = [];
