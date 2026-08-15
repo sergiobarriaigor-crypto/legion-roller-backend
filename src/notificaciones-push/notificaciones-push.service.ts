@@ -23,6 +23,13 @@ interface PayloadPush {
 // bloqueo con el contenido visible.
 const CANAL_ALERTAS_ANDROID = 'legion_alertas';
 
+// Logo ya publicado en el frontend (frontend/public/logo-legion-roller-mini.png).
+// Android lo usa como ícono grande (junto al texto) y como imagen expandida
+// al abrir la notificación -- el ícono chico de la barra de estado sigue
+// siendo el monocromo (ic_stat_notify) que exige Android, este es aparte.
+const LOGO_NOTIFICACION_URL =
+  'https://legion-roller-front.vercel.app/logo-legion-roller-mini.png';
+
 @Injectable()
 export class NotificacionesPushService {
   private readonly logger = new Logger(NotificacionesPushService.name);
@@ -157,6 +164,7 @@ export class NotificacionesPushService {
             channelId: CANAL_ALERTAS_ANDROID,
             priority: 'max',
             visibility: 'public',
+            imageUrl: LOGO_NOTIFICACION_URL,
           },
         },
       });
