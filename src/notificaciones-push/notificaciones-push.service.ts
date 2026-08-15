@@ -27,7 +27,6 @@ const CANAL_ALERTAS_ANDROID = 'legion_alertas';
 // Android lo usa como ícono grande (junto al texto) y como imagen expandida
 // al abrir la notificación -- el ícono chico de la barra de estado sigue
 // siendo el monocromo (ic_stat_notify) que exige Android, este es aparte.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- desactivada temporalmente mas abajo, ver comentario en enviarATokensNativos
 const LOGO_NOTIFICACION_URL =
   'https://legion-roller-front.vercel.app/logo-legion-roller-mini.png';
 
@@ -165,8 +164,7 @@ export class NotificacionesPushService {
             channelId: CANAL_ALERTAS_ANDROID,
             priority: 'max',
             visibility: 'public',
-            // imageUrl: LOGO_NOTIFICACION_URL, -- desactivado temporalmente
-            // para probar si es la causa del icono raro en Funtouch OS
+            imageUrl: LOGO_NOTIFICACION_URL,
           },
         },
       });
