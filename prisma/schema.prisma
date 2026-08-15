@@ -707,6 +707,16 @@ model Emergencia {
   activa             Boolean   @default(true)
   createdAt          DateTime  @default(now())
   resueltaAt         DateTime?
+  // Ubicación tomada en el momento de activar el SOS -- independiente de
+  // UbicacionActiva (que solo existe/se mantiene fresca mientras el miembro
+  // tiene un modo Patinando/Estoy en Ruta activo). Sin esto, alguien que
+  // active una emergencia sin estar compartiendo ubicación en vivo (o con
+  // "modo oculto" activado, que no filtra las emergencias pero sí puede
+  // dejar su UbicacionActiva vieja/ausente) podía quedar invisible en el
+  // mapa de los demás. Nullable porque el GPS puede fallar/denegarse al
+  // activar -- en ese caso el servicio cae de vuelta a UbicacionActiva.
+  lat                Float?
+  lon                Float?
 }
 
 // Historias efímeras estilo Instagram (vigencia HORAS_VIGENCIA_HISTORIA = 24h), en la

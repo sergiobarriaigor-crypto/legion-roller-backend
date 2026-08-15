@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EmergenciasService } from './emergencias.service';
 import { CrearEmergenciaDto } from './dto/crear-emergencia.dto';
@@ -14,7 +22,12 @@ export class EmergenciasController {
 
   @Post()
   activar(@Req() req: RequestConUsuario, @Body() dto: CrearEmergenciaDto) {
-    return this.emergenciasService.activar(req.user.id, dto.motivo);
+    return this.emergenciasService.activar(
+      req.user.id,
+      dto.motivo,
+      dto.lat,
+      dto.lon,
+    );
   }
 
   @Delete('mia')

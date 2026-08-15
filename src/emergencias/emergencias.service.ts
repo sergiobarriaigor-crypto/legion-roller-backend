@@ -7,7 +7,7 @@ const MOTIVOS_QUE_REQUIEREN_AMBULANCIA = ['caida', 'salud'];
 export class EmergenciasService {
   constructor(private prisma: PrismaService) {}
 
-  async activar(miembroId: number, motivo: string) {
+  async activar(miembroId: number, motivo: string, lat?: number, lon?: number) {
     const existente = await this.prisma.emergencia.findFirst({
       where: { miembroId, activa: true },
     });
@@ -18,6 +18,8 @@ export class EmergenciasService {
         miembroId,
         motivo,
         requiereAmbulancia: MOTIVOS_QUE_REQUIEREN_AMBULANCIA.includes(motivo),
+        lat,
+        lon,
       },
     });
   }
@@ -37,7 +39,9 @@ export class EmergenciasService {
   }
 
   async miEmergencia(miembroId: number) {
-    return this.prisma.emergencia.findFirst({ where: { miembroId, activa: true } });
+    return this.prisma.emergencia.findFirst({
+      where: { miembroId, activa: true },
+    });
   }
 
   async activas() {
@@ -46,7 +50,12 @@ export class EmergenciasService {
       orderBy: { createdAt: 'desc' },
       include: {
         miembro: {
-          select: { id: true, nombre: true, ubicacionActiva: true },
+          select: {
+            id: true,
+            nombre: true,
+            fotoUrl: true,
+            ubicacionActiva: true,
+          },
         },
       },
     });
@@ -55,11 +64,15 @@ export class EmergenciasService {
       id: e.id,
       miembroId: e.miembroId,
       nombre: e.miembro.nombre,
+      fotoUrl: e.miembro.fotoUrl,
       motivo: e.motivo,
       requiereAmbulancia: e.requiereAmbulancia,
       createdAt: e.createdAt,
-      lat: e.miembro.ubicacionActiva?.lat ?? null,
-      lon: e.miembro.ubicacionActiva?.lon ?? null,
+      // Preferí la ubicación tomada al activar el SOS (ver comentario en el
+      // modelo Emergencia) -- solo cae a UbicacionActiva si el GPS falló en
+      // ese momento (ej. permiso denegado).
+      lat: e.lat ?? e.miembro.ubicacionActiva?.lat ?? null,
+      lon: e.lon ?? e.miembro.ubicacionActiva?.lon ?? null,
     }));
   }
 }
