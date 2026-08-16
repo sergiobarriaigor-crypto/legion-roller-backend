@@ -13,6 +13,7 @@ import {
   TIPOS_PUBLICACION,
   TIPOS_FINALIZACION,
   TIPOS_ASISTENCIA_EVENTO,
+  AUDIENCIAS_PUBLICACION,
 } from './crear-publicacion.dto';
 
 export class ActualizarPublicacionDto {
@@ -93,4 +94,8 @@ export class ActualizarPublicacionDto {
   @IsArray()
   @IsUrl({ require_tld: false }, { each: true })
   fotos?: string[];
+
+  @IsOptional()
+  @IsIn(AUDIENCIAS_PUBLICACION)
+  audiencia?: string;
 }

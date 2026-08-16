@@ -35,6 +35,8 @@ export const TIPOS_ASISTENCIA_EVENTO = [
   'autoconfirmacion',
 ] as const;
 
+export const AUDIENCIAS_PUBLICACION = ['todos', 'legion', 'comunidad'] as const;
+
 export class CrearPublicacionDto {
   @IsIn(TIPOS_PUBLICACION)
   tipo: string;
@@ -106,4 +108,8 @@ export class CrearPublicacionDto {
   @IsArray()
   @IsUrl({ require_tld: false }, { each: true })
   fotos?: string[];
+
+  @IsOptional()
+  @IsIn(AUDIENCIAS_PUBLICACION)
+  audiencia?: string;
 }

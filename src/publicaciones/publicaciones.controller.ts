@@ -27,9 +27,10 @@ interface RequestConUsuario {
 export class PublicacionesController {
   constructor(private publicacionesService: PublicacionesService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get()
-  listar() {
-    return this.publicacionesService.listar();
+  listar(@Req() req: RequestConUsuario) {
+    return this.publicacionesService.listar(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)

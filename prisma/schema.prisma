@@ -319,6 +319,12 @@ model Publicacion {
   fotos          String? // JSON array de URLs (Fase 10: subida real vía /uploads)
   createdAt      DateTime @default(now())
 
+  // A quién le llega esta publicación (todos los 8 tipos, no solo comunicado):
+  // "todos" | "legion" | "comunidad" -- se compara contra Miembro.categoria.
+  // Quien no tiene categoria asignada (null) solo ve las de "todos". El rol
+  // admin ve siempre todas, sin este filtro (ver publicaciones.service.ts).
+  audiencia      String   @default("todos")
+
   // Ajuste post-Fase 12: recordatorio push 30 minutos antes de fecha+hora
   // (solo rodada/evento/anuncio, ver RecordatoriosScheduler). Evita reenviar
   // el aviso en cada tick del cron una vez que ya se envió una vez.

@@ -65,13 +65,33 @@ export class PublicacionesService {
     return { ...p, fotos: p.fotos ? (JSON.parse(p.fotos) as string[]) : [] };
   }
 
-  async listar() {
+  // El admin ve siempre todo, sin filtrar por audiencia -- necesita
+  // gestionar/editar cualquier publicación aunque no le "toque". El resto
+  // solo ve lo etiquetado "todos" o lo que coincide con su categoria; sin
+  // categoria asignada (null) solo ve lo de "todos".
+  private puedeVerAudiencia(
+    audiencia: string,
+    solicitante: { rol: string; categoria: string | null } | null,
+  ): boolean {
+    if (audiencia === 'todos') return true;
+    if (solicitante?.rol === 'admin') return true;
+    return solicitante?.categoria === audiencia;
+  }
+
+  async listar(miembroId: number) {
+    const solicitante = await this.prisma.miembro.findUnique({
+      where: { id: miembroId },
+      select: { rol: true, categoria: true },
+    });
+
     const publicaciones = await this.prisma.publicacion.findMany({
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { reacciones: true } } },
     });
 
-    const vigentes = publicaciones.filter((p) => !this.estaVencida(p));
+    const vigentes = publicaciones
+      .filter((p) => !this.estaVencida(p))
+      .filter((p) => this.puedeVerAudiencia(p.audiencia, solicitante));
     const ids = vigentes.map((p) => p.id);
 
     const rsvps = ids.length
