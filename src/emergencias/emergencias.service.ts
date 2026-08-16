@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmergenciasGateway } from './emergencias.gateway';
 
 const MOTIVOS_QUE_REQUIEREN_AMBULANCIA = ['caida', 'salud'];
 
 @Injectable()
 export class EmergenciasService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emergenciasGateway: EmergenciasGateway,
+  ) {}
 
   async activar(miembroId: number, motivo: string, lat?: number, lon?: number) {
     const existente = await this.prisma.emergencia.findFirst({
@@ -13,7 +17,7 @@ export class EmergenciasService {
     });
     if (existente) return existente;
 
-    return this.prisma.emergencia.create({
+    const creada = await this.prisma.emergencia.create({
       data: {
         miembroId,
         motivo,
@@ -22,6 +26,8 @@ export class EmergenciasService {
         lon,
       },
     });
+    this.emergenciasGateway.emitirActivacion(miembroId);
+    return creada;
   }
 
   async cancelar(miembroId: number) {
@@ -35,6 +41,7 @@ export class EmergenciasService {
       where: { id: existente.id },
       data: { activa: false, resueltaAt: new Date() },
     });
+    this.emergenciasGateway.emitirCancelacion(miembroId);
     return { mensaje: 'Emergencia cancelada' };
   }
 
