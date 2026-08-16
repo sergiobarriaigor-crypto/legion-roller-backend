@@ -39,6 +39,7 @@ export interface ItemCalendario {
   hora: string | null;
   puntoEncuentro: string | null;
   fotoUrl: string | null;
+  musicaId: string | null;
   cancelada: boolean;
   motivoCancelacion: string | null;
   esCreador: boolean;
@@ -324,6 +325,7 @@ export class CalendarioService {
       fecha: inv.actividad.fecha,
       hora: inv.actividad.hora,
       fotoUrl: inv.actividad.fotoUrl,
+      musicaId: inv.actividad.musicaId,
       creadorNombre: inv.actividad.creador.nombre,
     }));
   }
@@ -354,6 +356,7 @@ export class CalendarioService {
         hora: p.hora,
         puntoEncuentro: p.puntoEncuentro,
         fotoUrl: null,
+        musicaId: null,
         cancelada: p.cancelada,
         motivoCancelacion: null,
         esCreador: false,
@@ -380,6 +383,7 @@ export class CalendarioService {
         hora: a.hora,
         puntoEncuentro: a.puntoEncuentro,
         fotoUrl: a.fotoUrl,
+        musicaId: a.musicaId,
         cancelada: a.cancelada,
         motivoCancelacion: a.motivoCancelacion,
         esCreador: a.creadorId === miembroId,
@@ -406,6 +410,7 @@ export class CalendarioService {
         hora: null,
         puntoEncuentro: null,
         fotoUrl: m.fotoUrl,
+        musicaId: null,
         cancelada: false,
         motivoCancelacion: null,
         esCreador: false,
@@ -423,6 +428,7 @@ export class CalendarioService {
         hora: null,
         puntoEncuentro: null,
         fotoUrl: null,
+        musicaId: null,
         cancelada: false,
         motivoCancelacion: null,
         esCreador: false,
