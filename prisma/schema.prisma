@@ -717,6 +717,13 @@ model Emergencia {
   // activar -- en ese caso el servicio cae de vuelta a UbicacionActiva.
   lat                Float?
   lon                Float?
+  // Vencimiento acordado con el usuario para el caso "el accidentado se
+  // olvida de cancelar": a los MIN_AVISO_SOS minutos le llega un push
+  // recordatorio (marca este flag para no reenviarlo cada minuto), a los
+  // MIN_VENCIMIENTO_SOS se cancela sola -- ver
+  // emergencia-vencimiento.scheduler.ts. Aparte, un Admin puede cancelar la
+  // de cualquiera en cualquier momento (emergencias.controller.ts).
+  avisoEnviado       Boolean   @default(false)
 }
 
 // Historias efímeras estilo Instagram (vigencia HORAS_VIGENCIA_HISTORIA = 24h), en la

@@ -1,0 +1,1 @@
+ALTER TABLE "Emergencia" ADD COLUMN "avisoEnviado" BOOLEAN NOT NULL DEFAULT false;
