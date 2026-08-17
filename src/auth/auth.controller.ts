@@ -15,10 +15,6 @@ import { RegistroDto } from './dto/registro.dto';
 import { AprobarSolicitudDto } from './dto/aprobar-solicitud.dto';
 import { CambiarCategoriaDto } from './dto/cambiar-categoria.dto';
 import { BloquearMiembroDto } from './dto/bloquear-miembro.dto';
-import {
-  ConfirmarCodigoDto,
-  EnviarCodigoDto,
-} from './dto/verificar-correo.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { Roles } from './roles.decorator';
@@ -35,16 +31,6 @@ export class AuthController {
   @Post('registro')
   registrar(@Body() dto: RegistroDto) {
     return this.authService.registrar(dto);
-  }
-
-  @Post('correo/enviar-codigo')
-  enviarCodigoCorreo(@Body() dto: EnviarCodigoDto) {
-    return this.authService.enviarCodigoVerificacion(dto.correo);
-  }
-
-  @Post('correo/confirmar-codigo')
-  confirmarCodigoCorreo(@Body() dto: ConfirmarCodigoDto) {
-    return this.authService.confirmarCodigoVerificacion(dto.correo, dto.codigo);
   }
 
   @UseGuards(JwtAuthGuard)

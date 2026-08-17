@@ -24,9 +24,8 @@ export class RegistroDto {
   @IsString()
   telefono?: string;
 
-  @IsOptional()
   @IsString()
-  ciudad?: string;
+  ciudad: string;
 
   @IsString()
   @MinLength(8)

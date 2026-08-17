@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -11,14 +10,12 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegistroDto } from './dto/registro.dto';
-import { VerificacionCorreoService } from './verificacion-correo.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private verificacionCorreo: VerificacionCorreoService,
   ) {}
 
   private async correoYaRegistrado(correo: string): Promise<boolean> {
@@ -27,27 +24,6 @@ export class AuthService {
       this.prisma.solicitudRegistro.findUnique({ where: { correo } }),
     ]);
     return !!miembro || !!solicitud;
-  }
-
-  async enviarCodigoVerificacion(correo: string) {
-    if (await this.correoYaRegistrado(correo)) {
-      throw new ConflictException(
-        'Ese correo ya tiene una cuenta o solicitud.',
-      );
-    }
-    const codigoDev = this.verificacionCorreo.generarCodigo(correo);
-    return {
-      mensaje: 'Código enviado (modo simulado, ver codigoDev).',
-      codigoDev,
-    };
-  }
-
-  confirmarCodigoVerificacion(correo: string, codigo: string) {
-    const resultado = this.verificacionCorreo.confirmarCodigo(correo, codigo);
-    if (!resultado.ok) {
-      throw new BadRequestException(resultado.error);
-    }
-    return { mensaje: 'Correo verificado.' };
   }
 
   private firmarToken(miembro: {
@@ -111,12 +87,6 @@ export class AuthService {
   async registrar(dto: RegistroDto) {
     if (await this.correoYaRegistrado(dto.correo)) {
       throw new ConflictException('Ese correo ya tiene una cuenta o solicitud');
-    }
-
-    if (!this.verificacionCorreo.estaVerificado(dto.correo)) {
-      throw new BadRequestException(
-        'Primero verifica tu correo con el código enviado.',
-      );
     }
 
     const passwordHash = await bcrypt.hash(dto.clave, 10);
