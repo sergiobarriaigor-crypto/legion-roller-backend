@@ -26,6 +26,27 @@ export class AuthService {
     return !!miembro || !!solicitud;
   }
 
+  // Sin distinción de mayúsculas/minúsculas -- a diferencia del correo (un
+  // identificador técnico de cuenta), el nombre/apodo es lo que ven el resto
+  // de los integrantes, así que "Kitty" y "kitty" igual generarían la misma
+  // confusión de identidad. Las solicitudes ya rechazadas no cuentan (ese
+  // nombre queda libre de nuevo); las pendientes sí, para que dos solicitudes
+  // con el mismo nombre no puedan quedar ambas esperando aprobación a la vez.
+  private async nombreYaUsado(nombre: string): Promise<boolean> {
+    const [miembro, solicitud] = await Promise.all([
+      this.prisma.miembro.findFirst({
+        where: { nombre: { equals: nombre, mode: 'insensitive' } },
+      }),
+      this.prisma.solicitudRegistro.findFirst({
+        where: {
+          nombre: { equals: nombre, mode: 'insensitive' },
+          estado: 'pendiente',
+        },
+      }),
+    ]);
+    return !!miembro || !!solicitud;
+  }
+
   private firmarToken(miembro: {
     id: number;
     correo: string;
@@ -87,6 +108,9 @@ export class AuthService {
   async registrar(dto: RegistroDto) {
     if (await this.correoYaRegistrado(dto.correo)) {
       throw new ConflictException('Ese correo ya tiene una cuenta o solicitud');
+    }
+    if (await this.nombreYaUsado(dto.nombre)) {
+      throw new ConflictException('Ese nombre o apodo ya está en uso.');
     }
 
     const passwordHash = await bcrypt.hash(dto.clave, 10);
