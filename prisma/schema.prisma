@@ -224,6 +224,15 @@ model Recorrido {
   favorito    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
+  // DIAGNÓSTICO TEMPORAL (auditoría GPS V2) -- detalle por-fix capturado
+  // durante la grabación (accuracy/fixTime/speed/simulated/retrasoMs/dtReal
+  // + si entró o no a `puntos` y por qué, ver FixDiagnosticoGps en
+  // frontend/src/lib/grabacionGps.ts), como JSON en texto (mismo patrón que
+  // `puntos`). Nullable: null en rutas grabadas sin el diagnóstico activo.
+  // BORRAR esta columna (vía una migración de reversión) una vez cerrada la
+  // investigación GPS.
+  diagnosticoGps String?
+
   asistencia AsistenciaRodada?
   flyovers   VideoFlyover[]
 }

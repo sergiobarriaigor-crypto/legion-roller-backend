@@ -97,4 +97,15 @@ export class MapaController {
   ) {
     return this.mapaService.diagnosticoPuntosCrudos(req.user.id, id);
   }
+
+  // DIAGNÓSTICO TEMPORAL -- ver comentario completo en diagnosticoGps()
+  // (mapa.service.ts). Mismo JwtAuthGuard + chequeo de pertenencia que el
+  // resto de las rutas de diagnóstico. BORRAR junto con el resto.
+  @Get('recorridos/:id/diagnostico-gps')
+  diagnosticoGps(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.mapaService.diagnosticoGps(req.user.id, id);
+  }
 }

@@ -412,6 +412,11 @@ export class MapaService {
         distanciaKm: dto.distanciaKm,
         duracionSeg: dto.duracionSeg,
         puntos: JSON.stringify(dto.puntos),
+        // DIAGNÓSTICO TEMPORAL -- ver FixDiagnosticoDto. null si esta
+        // grabación no mandó diagnóstico (nunca se inventa).
+        diagnosticoGps: dto.diagnosticoGps?.length
+          ? JSON.stringify(dto.diagnosticoGps)
+          : null,
       },
     });
 
@@ -507,6 +512,35 @@ export class MapaService {
         lon: p.lon,
         timestamp: p.timestamp,
       })),
+    };
+  }
+
+  // DIAGNÓSTICO TEMPORAL -- ver diagnosticoPuntosCrudos arriba, mismo
+  // criterio de pertenencia/solo lectura. A diferencia de ese endpoint
+  // (puntos ya guardados, sin decimar), esto expone el detalle POR FIX
+  // capturado durante la grabación -- accuracy/fixTime/speed/simulated/
+  // retrasoMs/dtReal, más si entró o no a `puntos` y por qué (ver
+  // FixDiagnosticoGps en frontend/src/lib/grabacionGps.ts). motivoRechazo es
+  // diagnóstico DERIVADO, calculado por un espejo de solo lectura en el
+  // frontend -- no es la fuente oficial de la decisión de aceptación (esa
+  // sigue siendo exclusivamente alRecibirPosicion/registrarPuntoGrabado, sin
+  // ningún cambio). `fixes` queda vacío si esta ruta se grabó sin el
+  // diagnóstico activo. BORRAR este método (la ruta del controller, y la
+  // columna diagnosticoGps de Recorrido vía una migración de reversión) una
+  // vez cerrada la investigación GPS.
+  async diagnosticoGps(miembroId: number, id: number) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+      select: { id: true, createdAt: true, diagnosticoGps: true },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    return {
+      idRuta: recorrido.id,
+      inicio: recorrido.createdAt,
+      fixes: recorrido.diagnosticoGps
+        ? (JSON.parse(recorrido.diagnosticoGps) as unknown[])
+        : [],
     };
   }
 
