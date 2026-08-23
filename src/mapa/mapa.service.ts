@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
@@ -48,6 +48,11 @@ const KM_MOVIMIENTO_SIGNIFICATIVO = 0.03; // ~30 metros
 
 @Injectable()
 export class MapaService {
+  // DIAGNÓSTICO TEMPORAL -- ver logs "BACK dto diagnostico=" / "BACK
+  // persistiendo diagnostico=" / "BACK leyendo diagnostico=" más abajo.
+  // BORRAR junto con el resto de la instrumentación de diagnosticoGps.
+  private readonly logger = new Logger(MapaService.name);
+
   constructor(
     private prisma: PrismaService,
     private mapaGateway: MapaGateway,
@@ -344,6 +349,10 @@ export class MapaService {
   }
 
   async guardarRecorrido(miembroId: number, dto: RecorridoDto) {
+    // DIAGNÓSTICO TEMPORAL -- ver mapa.controller.ts/grabacionGps.ts/
+    // MapaView.tsx para los logs equivalentes en las demás fronteras.
+    this.logger.log(`BACK dto diagnostico=${dto.diagnosticoGps?.length ?? 0}`);
+
     // Toque accidental o quedarse parado con el modo activo (sin desplazarse
     // realmente): no se guarda nada -- ni Recorrido, ni suma a los contadores
     // permanentes -- y no se muestra ningún error, simplemente no pasó nada.
@@ -403,6 +412,11 @@ export class MapaService {
         };
       }
     }
+
+    // DIAGNÓSTICO TEMPORAL -- ver comentario en el log de arriba.
+    this.logger.log(
+      `BACK persistiendo diagnostico=${dto.diagnosticoGps?.length ?? 0}`,
+    );
 
     const recorrido = await this.prisma.recorrido.create({
       data: {
@@ -535,12 +549,20 @@ export class MapaService {
     });
     if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
 
+    const fixes = recorrido.diagnosticoGps
+      ? (JSON.parse(recorrido.diagnosticoGps) as unknown[])
+      : [];
+    // DIAGNÓSTICO TEMPORAL -- ver comentario en guardarRecorrido. Loguea
+    // también si la columna en sí es null/vacía vs. si tenía contenido y el
+    // parseo dio 0 elementos, para distinguir ambos casos.
+    this.logger.log(
+      `BACK leyendo diagnostico=${fixes.length} (columna ${recorrido.diagnosticoGps ? 'con contenido' : 'null'})`,
+    );
+
     return {
       idRuta: recorrido.id,
       inicio: recorrido.createdAt,
-      fixes: recorrido.diagnosticoGps
-        ? (JSON.parse(recorrido.diagnosticoGps) as unknown[])
-        : [],
+      fixes,
     };
   }
 
