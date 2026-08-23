@@ -473,6 +473,43 @@ export class MapaService {
     return { favorito: actualizado.favorito };
   }
 
+  // DIAGNÓSTICO TEMPORAL -- auditoría del watcher GPS persistente (ver
+  // frontend/src/lib/grabacionGps.ts). Devuelve los puntos EXACTAMENTE como
+  // quedaron guardados por guardarRecorrido() más arriba, sin pasar por
+  // decimarPuntos() (eso solo se aplica en misRecorridos(), para la lista
+  // de "Mis rutas" -- acá se necesita ver cada punto real capturado, no una
+  // muestra de 50). No incluye `accuracy`: ese campo nunca se persistió
+  // (ver PuntoDto en recorrido.dto.ts) -- no se inventa ni se reconstruye
+  // acá. Solo lectura (un único findFirst, sin update/delete/create) y
+  // restringido al dueño real (mismo criterio que eliminarRecorrido/
+  // alternarFavorito: si el id no es de este miembroId, 404 -- nunca expone
+  // datos de otro usuario). BORRAR este método (y la ruta del controller
+  // que lo expone) una vez cerrada la investigación GPS.
+  async diagnosticoPuntosCrudos(miembroId: number, id: number) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+      select: { id: true, createdAt: true, puntos: true },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    const crudos = JSON.parse(recorrido.puntos) as {
+      lat: number;
+      lon: number;
+      timestamp: number;
+    }[];
+    return {
+      idRuta: recorrido.id,
+      inicio: recorrido.createdAt,
+      totalPuntos: crudos.length,
+      puntos: crudos.map((p, indice) => ({
+        indice,
+        lat: p.lat,
+        lon: p.lon,
+        timestamp: p.timestamp,
+      })),
+    };
+  }
+
   // "Mis rutas": esta sección existe específicamente para guardar el
   // trazado/mapa de rutas mapeadas (con cupo de MAX_RECORRIDOS_GUARDADOS) —
   // por eso solo trae `mapeado: true`. Las actividades sin mapear (o las que

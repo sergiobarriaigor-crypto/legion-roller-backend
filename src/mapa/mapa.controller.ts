@@ -83,4 +83,18 @@ export class MapaController {
   ) {
     return this.mapaService.alternarFavorito(req.user.id, id);
   }
+
+  // DIAGNÓSTICO TEMPORAL -- ver comentario completo en
+  // diagnosticoPuntosCrudos() (mapa.service.ts). Protegido por el mismo
+  // JwtAuthGuard del controller y por el mismo chequeo de pertenencia
+  // (miembroId) que eliminarRecorrido/alternarFavorito -- nunca devuelve
+  // datos de un recorrido ajeno. Solo lectura. BORRAR esta ruta (y el
+  // método de servicio) una vez cerrada la investigación GPS.
+  @Get('recorridos/:id/diagnostico-temporal')
+  diagnosticoPuntosCrudos(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.mapaService.diagnosticoPuntosCrudos(req.user.id, id);
+  }
 }
