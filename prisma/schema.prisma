@@ -233,6 +233,15 @@ model Recorrido {
   // investigación GPS.
   diagnosticoGps String?
 
+  // DIAGNÓSTICO TEMPORAL -- señales escalares de dónde vive diagnosticoGps
+  // en cada instante del flujo frontend (registrarDiagnosticoGps/
+  // obtenerDiagnosticoGps/finalizarModo), independientes del array de
+  // arriba a propósito: sirven para saber en qué frontera se vació aunque
+  // diagnosticoGps ya haya llegado en 0. Ver DiagnosticoFlujoDto en
+  // recorrido.dto.ts. Nullable, mismo patrón que diagnosticoGps. BORRAR
+  // junto con esa columna al cerrar la investigación GPS.
+  diagnosticoFlujo String?
+
   asistencia AsistenciaRodada?
   flyovers   VideoFlyover[]
 }

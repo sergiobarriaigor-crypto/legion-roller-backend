@@ -77,6 +77,30 @@ export class FixDiagnosticoDto {
   motivoRechazo: string | null;
 }
 
+// DIAGNÓSTICO TEMPORAL -- señales escalares independientes del array
+// diagnosticoGps (ver FixDiagnosticoDto), para localizar en qué frontera
+// del flujo frontend (registrarDiagnosticoGps -> diagnosticoFixes ->
+// obtenerDiagnosticoGps -> finalizarModo -> POST) un acumulador poblado
+// termina llegando vacío. BORRAR esta clase (y el campo que la usa en
+// RecorridoDto) una vez cerrada la investigación GPS.
+export class DiagnosticoFlujoDto {
+  @IsInt()
+  vecesRegistrarDiagnosticoGps: number;
+
+  @IsInt()
+  maxDiagnosticoFixes: number;
+
+  @IsInt()
+  diagnosticoFixesAlObtenerSnapshot: number;
+
+  @IsInt()
+  snapshotAntesPost: number;
+
+  @IsOptional()
+  @IsString()
+  buildFrontend?: string;
+}
+
 export class RecorridoDto {
   @IsIn(['ruta', 'libre'])
   tipo: string;
@@ -117,4 +141,11 @@ export class RecorridoDto {
   @ValidateNested({ each: true })
   @Type(() => FixDiagnosticoDto)
   diagnosticoGps?: FixDiagnosticoDto[];
+
+  // DIAGNÓSTICO TEMPORAL -- ver comentario en DiagnosticoFlujoDto. Opcional,
+  // mismo criterio que diagnosticoGps.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DiagnosticoFlujoDto)
+  diagnosticoFlujo?: DiagnosticoFlujoDto;
 }

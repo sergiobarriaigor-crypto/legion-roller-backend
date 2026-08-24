@@ -417,6 +417,11 @@ export class MapaService {
     this.logger.log(
       `BACK persistiendo diagnostico=${dto.diagnosticoGps?.length ?? 0}`,
     );
+    if (dto.diagnosticoFlujo) {
+      this.logger.log(
+        `BACK dto diagnosticoFlujo=${JSON.stringify(dto.diagnosticoFlujo)}`,
+      );
+    }
 
     const recorrido = await this.prisma.recorrido.create({
       data: {
@@ -430,6 +435,12 @@ export class MapaService {
         // grabación no mandó diagnóstico (nunca se inventa).
         diagnosticoGps: dto.diagnosticoGps?.length
           ? JSON.stringify(dto.diagnosticoGps)
+          : null,
+        // DIAGNÓSTICO TEMPORAL -- ver DiagnosticoFlujoDto. Señales
+        // escalares independientes del array de arriba, para localizar en
+        // qué frontera del flujo frontend se vació.
+        diagnosticoFlujo: dto.diagnosticoFlujo
+          ? JSON.stringify(dto.diagnosticoFlujo)
           : null,
       },
     });
@@ -545,7 +556,12 @@ export class MapaService {
   async diagnosticoGps(miembroId: number, id: number) {
     const recorrido = await this.prisma.recorrido.findFirst({
       where: { id, miembroId },
-      select: { id: true, createdAt: true, diagnosticoGps: true },
+      select: {
+        id: true,
+        createdAt: true,
+        diagnosticoGps: true,
+        diagnosticoFlujo: true,
+      },
     });
     if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
 
@@ -559,10 +575,17 @@ export class MapaService {
       `BACK leyendo diagnostico=${fixes.length} (columna ${recorrido.diagnosticoGps ? 'con contenido' : 'null'})`,
     );
 
+    // DIAGNÓSTICO TEMPORAL -- ver DiagnosticoFlujoDto. null si esta ruta se
+    // grabó sin esta instrumentación activa.
+    const flujo = recorrido.diagnosticoFlujo
+      ? (JSON.parse(recorrido.diagnosticoFlujo) as unknown)
+      : null;
+
     return {
       idRuta: recorrido.id,
       inicio: recorrido.createdAt,
       fixes,
+      flujo,
     };
   }
 
