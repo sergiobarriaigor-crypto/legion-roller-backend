@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MapaService } from './mapa.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
+import { ResumenGpsV2Dto } from './dto/resumen-gps-v2.dto';
 
 interface RequestConUsuario {
   user: { id: number };
@@ -107,5 +108,18 @@ export class MapaController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.mapaService.diagnosticoGps(req.user.id, id);
+  }
+
+  // GPS V2 (Fase 2, modo sombra) -- recibe el resumen de comparación V1 vs
+  // V2 en un POST separado, DESPUÉS de que la ruta ya se guardó vía
+  // `guardarRecorrido` de arriba. Mismo JwtAuthGuard + chequeo de
+  // pertenencia que el resto de las rutas de recorridos.
+  @Post('recorridos/:id/comparacion-v2')
+  guardarResumenGpsV2(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResumenGpsV2Dto,
+  ) {
+    return this.mapaService.guardarResumenGpsV2(req.user.id, id, dto);
   }
 }

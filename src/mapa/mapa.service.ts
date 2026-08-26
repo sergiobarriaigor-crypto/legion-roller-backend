@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UbicacionDto } from './dto/ubicacion.dto';
 import { RecorridoDto } from './dto/recorrido.dto';
+import { ResumenGpsV2Dto } from './dto/resumen-gps-v2.dto';
 import { combinarFechaHoraChile } from '../common/fecha-chile.util';
 import { MapaGateway } from './mapa.gateway';
 
@@ -561,6 +562,7 @@ export class MapaService {
         createdAt: true,
         diagnosticoGps: true,
         diagnosticoFlujo: true,
+        diagnosticoGpsV2: true,
       },
     });
     if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
@@ -581,12 +583,43 @@ export class MapaService {
       ? (JSON.parse(recorrido.diagnosticoFlujo) as unknown)
       : null;
 
+    // GPS V2 (Fase 2, modo sombra) -- null si el POST separado de
+    // comparación nunca llegó a guardarse (ruta grabada sin V2 activo, o el
+    // envío falló -- ver comentario en guardarResumenGpsV2).
+    const v2 = recorrido.diagnosticoGpsV2
+      ? (JSON.parse(recorrido.diagnosticoGpsV2) as unknown)
+      : null;
+
     return {
       idRuta: recorrido.id,
       inicio: recorrido.createdAt,
       fixes,
       flujo,
+      v2,
     };
+  }
+
+  // GPS V2 (Fase 2, modo sombra) -- guarda el resumen de comparación V1 vs
+  // V2 de una ruta ya guardada. Llamado desde un POST separado y POSTERIOR
+  // al guardado real (ver finalizarModo en MapaView.tsx): si esto falla, la
+  // ruta real ya quedó guardada de todos modos. Mismo criterio de
+  // pertenencia que eliminarRecorrido/alternarFavorito/diagnosticoGps: si el
+  // id no es de este miembroId, 404.
+  async guardarResumenGpsV2(
+    miembroId: number,
+    id: number,
+    dto: ResumenGpsV2Dto,
+  ) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    await this.prisma.recorrido.update({
+      where: { id },
+      data: { diagnosticoGpsV2: JSON.stringify(dto) },
+    });
+    return { guardado: true };
   }
 
   // "Mis rutas": esta sección existe específicamente para guardar el

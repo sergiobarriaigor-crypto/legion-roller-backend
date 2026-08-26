@@ -242,6 +242,14 @@ model Recorrido {
   // junto con esa columna al cerrar la investigación GPS.
   diagnosticoFlujo String?
 
+  // GPS V2 (Fase 2, modo sombra) -- resumen mínimo de comparación V1 vs V2
+  // (fixesRecibidos, puntosConfiables, discontinuidades, entradasRecuperacion,
+  // candidatosPendientes, rechazados por motivo), como JSON en texto, mismo
+  // patrón que diagnosticoGps/diagnosticoFlujo. Nullable: se envía en un POST
+  // separado y posterior al guardado real, por lo que una ruta puede quedar
+  // sin este campo si ese envío falla.
+  diagnosticoGpsV2 String?
+
   asistencia AsistenciaRodada?
   flyovers   VideoFlyover[]
 }
