@@ -85,6 +85,17 @@ export class MapaController {
     return this.mapaService.alternarFavorito(req.user.id, id);
   }
 
+  // Geometría completa (sin decimar) de una ruta puntual -- ver comentario
+  // completo en puntosCompletos() (mapa.service.ts). Mismo JwtAuthGuard +
+  // chequeo de pertenencia que el resto de las rutas de recorridos.
+  @Get('recorridos/:id/puntos-completos')
+  puntosCompletos(
+    @Req() req: RequestConUsuario,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.mapaService.puntosCompletos(req.user.id, id);
+  }
+
   // DIAGNÓSTICO TEMPORAL -- ver comentario completo en
   // diagnosticoPuntosCrudos() (mapa.service.ts). Protegido por el mismo
   // JwtAuthGuard del controller y por el mismo chequeo de pertenencia

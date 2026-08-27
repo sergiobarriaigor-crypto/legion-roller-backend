@@ -504,6 +504,30 @@ export class MapaService {
     return { favorito: actualizado.favorito };
   }
 
+  // Geometría completa de un recorrido puntual (sin la decimación a 50
+  // puntos de misRecorridos(), pensada solo para la vista liviana de "Mis
+  // rutas"). Usado al abrir "Compartir" para que la tarjeta/imagen y el
+  // Video 2D reconstruyan la ruta real -- distancia y clasificación de
+  // tramos (clasificarTramos) deben ver los mismos puntos que ya se
+  // validaron en la captura, no una muestra reducida por índice que puede
+  // generar tramos "saltoGps" falsos. Solo lectura, restringido al dueño
+  // real (mismo criterio que eliminarRecorrido/alternarFavorito).
+  async puntosCompletos(miembroId: number, id: number) {
+    const recorrido = await this.prisma.recorrido.findFirst({
+      where: { id, miembroId },
+      select: { puntos: true },
+    });
+    if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
+
+    return {
+      puntos: JSON.parse(recorrido.puntos) as {
+        lat: number;
+        lon: number;
+        timestamp: number;
+      }[],
+    };
+  }
+
   // DIAGNÓSTICO TEMPORAL -- auditoría del watcher GPS persistente (ver
   // frontend/src/lib/grabacionGps.ts). Devuelve los puntos EXACTAMENTE como
   // quedaron guardados por guardarRecorrido() más arriba, sin pasar por
