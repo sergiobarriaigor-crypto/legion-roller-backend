@@ -86,4 +86,14 @@ export class ResumenGpsV2Dto {
   @ValidateNested({ each: true })
   @Type(() => RechazadoV2Dto)
   rechazados: RechazadoV2Dto[];
+
+  // Instrumentación adicional (auditoría ruta 100, ver gpsV2/index.ts) --
+  // no cambia ningún criterio del pipeline, solo lo hace visible.
+  @IsInt()
+  @Min(0)
+  ruido: number;
+
+  @IsNumber()
+  @Min(0)
+  maxIntervaloEntreFixesCrudosSeg: number;
 }
