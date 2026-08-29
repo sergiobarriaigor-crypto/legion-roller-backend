@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -58,6 +59,14 @@ export class RechazadoV2Dto {
   cantidad: number;
 }
 
+export class EventoDisponibilidadV2Dto {
+  @IsBoolean()
+  disponible: boolean;
+
+  @IsNumber()
+  hora: number;
+}
+
 export class ResumenGpsV2Dto {
   @IsInt()
   @Min(0)
@@ -82,6 +91,13 @@ export class ResumenGpsV2Dto {
   @Min(0)
   candidatosPendientes: number;
 
+  // Ver gpsV2/index.ts -- resultados "candidato-recuperacion", necesario
+  // para que el invariante de auditoría (fixesRecibidos = suma de todos los
+  // conteos) cierre en cualquier instante, no solo al finalizar.
+  @IsInt()
+  @Min(0)
+  candidatosRecuperacion: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RechazadoV2Dto)
@@ -96,4 +112,15 @@ export class ResumenGpsV2Dto {
   @IsNumber()
   @Min(0)
   maxIntervaloEntreFixesCrudosSeg: number;
+
+  // Auditoría de disponibilidad de la fuente de ubicación del sistema (ver
+  // informarDisponibilidadUbicacionV2 en gpsV2/index.ts).
+  @IsInt()
+  @Min(0)
+  fixesRecibidosFuenteNoDisponible: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EventoDisponibilidadV2Dto)
+  eventosDisponibilidad: EventoDisponibilidadV2Dto[];
 }
