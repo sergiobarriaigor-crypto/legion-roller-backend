@@ -107,6 +107,51 @@ export class EventoPauseResumeActivityV2Dto {
   hora: number;
 }
 
+// Instrumentación adicional (auditoría ruta 104 -- investigación de la
+// hipótesis "doble watcher"). Puramente observacional, mismo criterio de
+// opcionalidad que el resto de este archivo.
+
+export class EventoWatcherV2Dto {
+  @IsNumber()
+  hora: number;
+
+  @IsInt()
+  @Min(0)
+  cantidad: number;
+}
+
+export class ForegroundErrorV2Dto {
+  @IsString()
+  mensaje: string;
+
+  @IsNumber()
+  hora: number;
+}
+
+export class ThreadRequestUpdatesV2Dto {
+  @IsString()
+  nombreThread: string;
+
+  @IsNumber()
+  hora: number;
+}
+
+// Lado JS de la misma investigación (ver grabacionGps.ts en el frontend) --
+// no viene del plugin nativo, se fusiona en obtenerResumenGpsV2ConDiagnosticoNativo().
+export class IntentosIniciarGrabacionV2Dto {
+  @IsInt()
+  @Min(0)
+  entradas: number;
+
+  @IsInt()
+  @Min(0)
+  pasaronGuard: number;
+
+  @IsInt()
+  @Min(0)
+  llegaronAWatcher: number;
+}
+
 export class DiagnosticoNativoV2Dto {
   @IsInt()
   @Min(0)
@@ -133,6 +178,43 @@ export class DiagnosticoNativoV2Dto {
   @ValidateNested({ each: true })
   @Type(() => EventoPauseResumeActivityV2Dto)
   eventosPauseResumeActivity: EventoPauseResumeActivityV2Dto[];
+
+  // Instrumentación adicional (auditoría ruta 104) -- ver arriba.
+  @IsInt()
+  @Min(0)
+  watchersActivos: number;
+
+  @IsInt()
+  @Min(0)
+  maxWatchersSimultaneos: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EventoWatcherV2Dto)
+  eventosWatchers: EventoWatcherV2Dto[];
+
+  @IsInt()
+  @Min(0)
+  foregroundIntentos: number;
+
+  @IsInt()
+  @Min(0)
+  foregroundExitos: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ForegroundErrorV2Dto)
+  foregroundErrores: ForegroundErrorV2Dto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ThreadRequestUpdatesV2Dto)
+  threadsRequestUpdates: ThreadRequestUpdatesV2Dto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IntentosIniciarGrabacionV2Dto)
+  intentosIniciarGrabacion?: IntentosIniciarGrabacionV2Dto;
 }
 
 export class ResumenGpsV2Dto {
