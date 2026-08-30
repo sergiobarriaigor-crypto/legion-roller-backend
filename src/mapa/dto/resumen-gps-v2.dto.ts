@@ -67,6 +67,74 @@ export class EventoDisponibilidadV2Dto {
   hora: number;
 }
 
+// Instrumentación diagnóstica (auditoría ruta 103, ver
+// frontend/src/lib/gpsV2/diagnosticoNativo.ts) -- puramente observacional,
+// no participa en ningún criterio de aceptación/rechazo/recuperación de
+// V1/V2. Todo opcional: rutas grabadas con un cliente que todavía no manda
+// esto siguen validando igual.
+
+export class HuecoNativoV2Dto {
+  @IsNumber()
+  anteriorTimestamp: number;
+
+  @IsNumber()
+  actualTimestamp: number;
+
+  @IsNumber()
+  intervaloSeg: number;
+}
+
+// providerAvailability (FusedLocationProviderClient.onLocationAvailability())
+// -- deliberadamente separado de EventoDisponibilidadV2Dto de arriba
+// (systemLocationEnabled, LocationManager.MODE_CHANGED_ACTION): son dos
+// señales distintas de Android.
+export class EventoDisponibilidadProveedorV2Dto {
+  @IsBoolean()
+  disponible: boolean;
+
+  @IsNumber()
+  horaNativa: number;
+}
+
+// Lifecycle de MainActivity (onPause/onResume) -- deliberadamente NO
+// "foreground/background de la app", ver comentario en tipos.ts del
+// frontend.
+export class EventoPauseResumeActivityV2Dto {
+  @IsBoolean()
+  activo: boolean;
+
+  @IsNumber()
+  hora: number;
+}
+
+export class DiagnosticoNativoV2Dto {
+  @IsInt()
+  @Min(0)
+  total: number;
+
+  @IsNumber()
+  ultimoTimestamp: number;
+
+  @IsNumber()
+  @Min(0)
+  maxIntervaloSeg: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HuecoNativoV2Dto)
+  huecosNativos: HuecoNativoV2Dto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EventoDisponibilidadProveedorV2Dto)
+  eventosDisponibilidadProveedor: EventoDisponibilidadProveedorV2Dto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EventoPauseResumeActivityV2Dto)
+  eventosPauseResumeActivity: EventoPauseResumeActivityV2Dto[];
+}
+
 export class ResumenGpsV2Dto {
   @IsInt()
   @Min(0)
@@ -123,4 +191,11 @@ export class ResumenGpsV2Dto {
   @ValidateNested({ each: true })
   @Type(() => EventoDisponibilidadV2Dto)
   eventosDisponibilidad: EventoDisponibilidadV2Dto[];
+
+  // Instrumentación diagnóstica (auditoría ruta 103) -- opcional, ver
+  // DiagnosticoNativoV2Dto arriba.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DiagnosticoNativoV2Dto)
+  diagnosticoNativo?: DiagnosticoNativoV2Dto;
 }
