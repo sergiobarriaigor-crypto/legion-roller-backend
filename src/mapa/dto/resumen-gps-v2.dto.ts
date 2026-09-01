@@ -152,6 +152,32 @@ export class IntentosIniciarGrabacionV2Dto {
   llegaronAWatcher: number;
 }
 
+// Heartbeat (auditoría ruta 107, ver DiagnosticoHeartbeat.java) -- entrada
+// anómala del heartbeat nativo (intervalo entre ticks de 5s >=20s). Ninguno
+// de estos campos participa en ningún criterio de V1/V2.
+export class HuecoHeartbeatV2Dto {
+  @IsNumber()
+  anteriorTimestamp: number;
+
+  @IsNumber()
+  actualTimestamp: number;
+
+  @IsNumber()
+  intervaloSeg: number;
+
+  @IsBoolean()
+  isDeviceIdleMode: boolean;
+
+  @IsBoolean()
+  isInteractive: boolean;
+
+  @IsInt()
+  memoryImportance: number;
+
+  @IsString()
+  nombreThread: string;
+}
+
 export class DiagnosticoNativoV2Dto {
   @IsInt()
   @Min(0)
@@ -210,6 +236,23 @@ export class DiagnosticoNativoV2Dto {
   @ValidateNested({ each: true })
   @Type(() => ThreadRequestUpdatesV2Dto)
   threadsRequestUpdates: ThreadRequestUpdatesV2Dto[];
+
+  // Heartbeat (auditoría ruta 107) -- ver HuecoHeartbeatV2Dto arriba.
+  @IsInt()
+  @Min(0)
+  totalHeartbeats: number;
+
+  @IsNumber()
+  ultimoHeartbeatTimestamp: number;
+
+  @IsNumber()
+  @Min(0)
+  maxIntervaloHeartbeatSeg: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HuecoHeartbeatV2Dto)
+  huecosHeartbeat: HuecoHeartbeatV2Dto[];
 
   @IsOptional()
   @ValidateNested()
