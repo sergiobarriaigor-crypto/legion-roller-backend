@@ -178,6 +178,46 @@ export class HuecoHeartbeatV2Dto {
   nombreThread: string;
 }
 
+// FASE DIAGNÓSTICA ENERGÍA (ver DiagnosticoHeartbeat.java) -- a diferencia de
+// HuecoHeartbeatV2Dto (solo huecos anómalos), se registra en CADA tick
+// normal del heartbeat. Ninguno de estos campos participa en ningún
+// criterio de V1/V2.
+export class SnapshotEnergiaV2Dto {
+  @IsNumber()
+  timestamp: number;
+
+  @IsBoolean()
+  isInteractive: boolean;
+
+  @IsBoolean()
+  isDeviceIdleMode: boolean;
+
+  @IsBoolean()
+  isPowerSaveMode: boolean;
+
+  @IsBoolean()
+  isIgnoringBatteryOptimizations: boolean;
+
+  @IsInt()
+  memoryImportance: number;
+}
+
+// Un renglón por CAMBIO de valor (screen/doze/powerSave/batteryExemption)
+// respecto del tick anterior -- nunca uno por tick.
+export class TransicionEnergiaV2Dto {
+  @IsIn(['screen', 'doze', 'powerSave', 'batteryExemption'])
+  tipo: string;
+
+  @IsBoolean()
+  anterior: boolean;
+
+  @IsBoolean()
+  nuevo: boolean;
+
+  @IsNumber()
+  timestamp: number;
+}
+
 export class DiagnosticoNativoV2Dto {
   @IsInt()
   @Min(0)
@@ -253,6 +293,23 @@ export class DiagnosticoNativoV2Dto {
   @ValidateNested({ each: true })
   @Type(() => HuecoHeartbeatV2Dto)
   huecosHeartbeat: HuecoHeartbeatV2Dto[];
+
+  // FASE DIAGNÓSTICA ENERGÍA -- ver SnapshotEnergiaV2Dto/TransicionEnergiaV2Dto
+  // arriba. @IsOptional() para que clientes anteriores a esta fase (que no
+  // mandan estos 2 campos) sigan validando -- si vienen presentes, siguen
+  // validándose igual que cualquier otro campo (IsOptional solo exime la
+  // ausencia, no el contenido).
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SnapshotEnergiaV2Dto)
+  snapshotsEnergia?: SnapshotEnergiaV2Dto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TransicionEnergiaV2Dto)
+  transicionesEnergia?: TransicionEnergiaV2Dto[];
 
   @IsOptional()
   @ValidateNested()
