@@ -5,6 +5,11 @@ import { RecorridoDto } from './dto/recorrido.dto';
 import { ResumenGpsV2Dto } from './dto/resumen-gps-v2.dto';
 import { combinarFechaHoraChile } from '../common/fecha-chile.util';
 import { MapaGateway } from './mapa.gateway';
+import { LIMITE_BODY_COMPARACION_V2 } from '../configurar-body-parsers';
+
+// Aviso (log, no error) cuando el diagnóstico GPS V2 de una ruta supera este
+// tamaño: 240000 bytes ~ 80% del límite del endpoint (LIMITE_BODY_COMPARACION_V2).
+const UMBRAL_AVISO_DIAGNOSTICO_BYTES = 240000;
 
 const HORAS_VIGENCIA_PATINANDO = 4;
 const HORAS_ESTADO = 8;
@@ -639,11 +644,30 @@ export class MapaService {
     });
     if (!recorrido) throw new NotFoundException('Recorrido no encontrado');
 
-    await this.prisma.recorrido.update({
-      where: { id },
-      data: { diagnosticoGpsV2: JSON.stringify(dto) },
-    });
-    return { guardado: true };
+    const json = JSON.stringify(dto);
+    const bytes = Buffer.byteLength(json, 'utf8');
+    try {
+      await this.prisma.recorrido.update({
+        where: { id },
+        data: { diagnosticoGpsV2: json },
+      });
+    } catch (err) {
+      // Un fallo de persistencia NO se traga: queda en el log con el tamaño
+      // y se relanza (el cliente recibe un 5xx explícito).
+      this.logger.error(
+        `diagnosticoGpsV2 NO se pudo persistir (recorrido ${id}, ${bytes} bytes): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
+    this.logger.log(
+      `diagnosticoGpsV2 persistido: recorrido ${id}, ${bytes} bytes`,
+    );
+    if (bytes > UMBRAL_AVISO_DIAGNOSTICO_BYTES) {
+      this.logger.warn(
+        `diagnosticoGpsV2 del recorrido ${id} ocupa ${bytes} bytes (> ${UMBRAL_AVISO_DIAGNOSTICO_BYTES}): cerca del límite de ${LIMITE_BODY_COMPARACION_V2} del endpoint`,
+      );
+    }
+    return { guardado: true, bytes };
   }
 
   // "Mis rutas": esta sección existe específicamente para guardar el

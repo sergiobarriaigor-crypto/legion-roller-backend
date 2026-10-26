@@ -4,9 +4,15 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import { configurarBodyParsers } from './configurar-body-parsers';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // bodyParser:false -- los parsers se registran explícitamente más abajo
+  // (ver configurar-body-parsers.ts): 100 KB en todos lados, 300 KB solo para
+  // POST /mapa/recorridos/:id/comparacion-v2.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
   // Railway termina el HTTPS en su borde y reenvía la conexión al backend por
   // HTTP puertas adentro — sin esto, Express no confía en el encabezado
   // X-Forwarded-Proto y `req.protocol` siempre reporta "http", aunque el
@@ -17,6 +23,7 @@ async function bootstrap() {
   // navegador bloquea ese fetch por ser contenido mixto (https pidiendo http).
   app.set('trust proxy', 1);
   app.enableCors();
+  configurarBodyParsers(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   // Página vanilla que carga Puppeteer para renderizar el video flyover 3D

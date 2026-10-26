@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -218,6 +219,140 @@ export class TransicionEnergiaV2Dto {
   timestamp: number;
 }
 
+// FASE DIAGNÓSTICA "TRES RELOJES" (ver DiagnosticoHeartbeat.java). Todo
+// OPCIONAL y aditivo: un cliente anterior que no manda nada de esto sigue
+// validando igual. Si viene, se valida (IsOptional solo exime la ausencia).
+// Los ArrayMaxSize acotan el tamaño: el cuerpo de este endpoint tiene un
+// límite (ver configurar-body-parsers.ts).
+//
+// Interpretación (no atribuye la causa a ningún fabricante): el cociente
+// du/de de un corte mide actividad GLOBAL de CPU -- ~1 = CPU despierta
+// durante el corte, ~0 = CPU suspendida.
+export class UltimoTickRelojesV2Dto {
+  @IsInt()
+  @Min(0)
+  i: number;
+
+  @IsNumber() w: number;
+  @IsNumber() u: number;
+  @IsNumber() e: number;
+  @IsNumber() fl: number;
+  @IsNumber() imp: number;
+}
+
+// Serie continua en columnas con deltas respecto de la muestra anterior
+// (dw/du/de tienen n-1 elementos; fl/imp tienen n).
+export class RelojesHeartbeatV2Dto {
+  @IsInt()
+  @Min(1)
+  paso: number;
+
+  @IsInt()
+  @Min(0)
+  n: number;
+
+  @IsOptional() @IsNumber() w0?: number;
+  @IsOptional() @IsNumber() u0?: number;
+  @IsOptional() @IsNumber() e0?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsNumber({}, { each: true })
+  dw?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsNumber({}, { each: true })
+  du?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsNumber({}, { each: true })
+  de?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsNumber({}, { each: true })
+  fl?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsNumber({}, { each: true })
+  imp?: number[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UltimoTickRelojesV2Dto)
+  ultimo?: UltimoTickRelojesV2Dto;
+}
+
+export class CorteHeartbeatV2Dto {
+  @IsInt()
+  @Min(0)
+  i: number;
+
+  @IsNumber() pw: number;
+  @IsNumber() pu: number;
+  @IsNumber() pe: number;
+  @IsNumber() w: number;
+  @IsNumber() u: number;
+  @IsNumber() e: number;
+  @IsNumber() dw: number;
+  @IsNumber() du: number;
+  @IsNumber() de: number;
+  @IsNumber() r: number;
+  @IsNumber() f0: number;
+  @IsNumber() f1: number;
+  @IsNumber() imp: number;
+  @IsNumber() bk: number;
+  @IsNumber() th: number;
+  @IsNumber() pc: number;
+  @IsNumber() tp: number;
+
+  @IsString()
+  hilo: string;
+}
+
+export class MuestraLentaV2Dto {
+  @IsNumber() w: number;
+  @IsNumber() e: number;
+  @IsNumber() bk: number;
+  @IsNumber() th: number;
+  @IsNumber() pc: number;
+  @IsNumber() tp: number;
+}
+
+export class FallosHeartbeatV2Dto {
+  @IsInt() @Min(0) general: number;
+  @IsInt() @Min(0) luz: number;
+  @IsInt() @Min(0) wakelock: number;
+  @IsInt() @Min(0) bgr: number;
+  @IsInt() @Min(0) bucket: number;
+  @IsInt() @Min(0) termica: number;
+  @IsInt() @Min(0) bateria: number;
+}
+
+export class ContadoresHeartbeatV2Dto {
+  @IsInt() @Min(0) version: number;
+  @IsInt() sdk: number;
+  @IsNumber() umbralCorteMs: number;
+  @IsInt() @Min(1) paso: number;
+  @IsInt() @Min(0) decimaciones: number;
+  @IsInt() @Min(0) cortesDescartados: number;
+  @IsInt() @Min(0) costoTickN: number;
+  @IsNumber() costoTickMedioUs: number;
+  @IsNumber() costoTickMaxUs: number;
+
+  @ValidateNested()
+  @Type(() => FallosHeartbeatV2Dto)
+  fallos: FallosHeartbeatV2Dto;
+}
+
 export class DiagnosticoNativoV2Dto {
   @IsInt()
   @Min(0)
@@ -310,6 +445,31 @@ export class DiagnosticoNativoV2Dto {
   @ValidateNested({ each: true })
   @Type(() => TransicionEnergiaV2Dto)
   transicionesEnergia?: TransicionEnergiaV2Dto[];
+
+  // FASE DIAGNÓSTICA "TRES RELOJES" -- ver clases de arriba.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RelojesHeartbeatV2Dto)
+  relojesHeartbeat?: RelojesHeartbeatV2Dto;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => CorteHeartbeatV2Dto)
+  cortesHeartbeat?: CorteHeartbeatV2Dto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(80)
+  @ValidateNested({ each: true })
+  @Type(() => MuestraLentaV2Dto)
+  muestrasLentas?: MuestraLentaV2Dto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ContadoresHeartbeatV2Dto)
+  contadoresHeartbeat?: ContadoresHeartbeatV2Dto;
 
   @IsOptional()
   @ValidateNested()
